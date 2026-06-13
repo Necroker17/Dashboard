@@ -62,7 +62,7 @@ function ProviderSelector({ provider, model, onChangeProvider, onChangeModel }) 
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 right-0 mb-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl z-20 overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-y-auto max-h-[70vh]">
           {Object.entries(PROVIDERS).map(([pid, prov]) => (
             <div key={pid}>
               <div className="flex items-center justify-between px-3 py-2 bg-zinc-900/60">
@@ -208,7 +208,7 @@ export default function AIAssistant({ onClose }) {
       </div>
 
       {/* Model selector */}
-      <div className="px-3 py-2 border-b border-zinc-800 flex-shrink-0">
+      <div className="px-3 py-2 border-b border-zinc-800 flex-shrink-0 relative z-10">
         <ProviderSelector
           provider={provider}
           model={model}

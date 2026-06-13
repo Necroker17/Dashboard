@@ -155,7 +155,7 @@ function TaskForm({ task, projects, projectId, onSave, onClose }) {
 }
 
 function ProjectForm({ project, onSave, onClose }) {
-  const COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2']
+  const COLORS = ['#7c3aed', '#a855f7', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2']
   const [form, setForm] = useState({
     name: project?.name || '',
     description: project?.description || '',
@@ -168,13 +168,31 @@ function ProjectForm({ project, onSave, onClose }) {
 
   return (
     <div className="space-y-4">
+      {/* Gradient accent bar */}
+      <div
+        className="h-1.5 rounded-full mb-5 -mt-1"
+        style={{ background: `linear-gradient(90deg, ${form.color}, ${form.color}80)` }}
+      />
       <div>
         <label className="label">Nombre *</label>
-        <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Nombre del proyecto" />
+        <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Nombre del proyecto" autoFocus />
       </div>
       <div>
         <label className="label">Descripción</label>
-        <textarea className="input resize-none" rows={2} value={form.description} onChange={e => set('description', e.target.value)} />
+        <textarea className="input resize-none" rows={2} value={form.description} onChange={e => set('description', e.target.value)} placeholder="¿De qué trata este proyecto?" />
+      </div>
+      <div>
+        <label className="label">Color del proyecto</label>
+        <div className="flex gap-2.5 mt-1.5">
+          {COLORS.map(c => (
+            <button
+              key={c}
+              onClick={() => set('color', c)}
+              className={`w-8 h-8 rounded-full transition-all ${form.color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900 scale-110' : 'hover:scale-105'}`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -191,21 +209,12 @@ function ProjectForm({ project, onSave, onClose }) {
           <input type="date" className="input" value={form.due_date} onChange={e => set('due_date', e.target.value)} />
         </div>
       </div>
-      <div>
-        <label className="label">Color</label>
-        <div className="flex gap-2 mt-1">
-          {COLORS.map(c => (
-            <button
-              key={c}
-              onClick={() => set('color', c)}
-              className={`w-7 h-7 rounded-full transition-transform ${form.color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900 scale-110' : ''}`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
-        </div>
-      </div>
       <div className="flex gap-2 pt-2">
-        <button onClick={save} className="btn-primary flex-1 justify-center">
+        <button
+          onClick={save}
+          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
+          style={{ background: `linear-gradient(135deg, ${form.color}, ${form.color}cc)` }}
+        >
           <Check size={15} /> {project ? 'Actualizar' : 'Crear proyecto'}
         </button>
         <button onClick={onClose} className="btn-ghost">Cancelar</button>
@@ -283,7 +292,11 @@ export default function Projects() {
           <Kanban size={20} className="text-zinc-400" />
           <h1 className="font-semibold text-zinc-100">Proyectos</h1>
         </div>
-        <button onClick={() => setProjectModal('new')} className="btn-primary">
+        <button
+          onClick={() => setProjectModal('new')}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
+        >
           <Plus size={15} /> Nuevo proyecto
         </button>
       </div>

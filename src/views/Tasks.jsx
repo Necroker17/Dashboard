@@ -4,9 +4,10 @@ import Modal from '../components/Modal'
 import { format, isPast, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
-  CheckSquare, Plus, Search, Filter, Trash2, Pencil,
-  Check, Clock, Tag, ChevronDown, CheckCircle2, Circle
+  CheckSquare, Plus, Search, Trash2, Pencil,
+  Check, Clock, ChevronDown, CheckCircle2, Circle
 } from 'lucide-react'
+import AIQuickFill from '../components/AIQuickFill'
 
 const PRIORITY_COLORS = { urgent: 'text-red-400', high: 'text-orange-400', medium: 'text-yellow-400', low: 'text-green-400' }
 const PRIORITY_BG = { urgent: 'bg-red-500/10', high: 'bg-orange-500/10', medium: 'bg-yellow-500/10', low: 'bg-green-500/10' }
@@ -81,6 +82,13 @@ function TaskForm({ task, projects, onSave, onClose }) {
   }
   return (
     <div className="space-y-4">
+      <AIQuickFill onFill={data => setForm(f => ({
+        ...f,
+        title: data.title || f.title,
+        description: data.description || f.description,
+        priority: data.priority || f.priority,
+        tags: data.tags !== undefined ? data.tags : f.tags,
+      }))} />
       <div><label className="label">Título *</label><input className="input" value={form.title} onChange={e => set('title', e.target.value)} /></div>
       <div><label className="label">Descripción</label><textarea className="input resize-none" rows={2} value={form.description} onChange={e => set('description', e.target.value)} /></div>
       <div className="grid grid-cols-2 gap-3">
