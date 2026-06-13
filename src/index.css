@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-zinc-950 text-zinc-50 font-sans antialiased;
+    overflow: hidden;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-600;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-violet-600 hover:bg-violet-500 text-white;
+  }
+  .btn-ghost {
+    @apply btn hover:bg-zinc-800 text-zinc-300 hover:text-zinc-50;
+  }
+  .btn-danger {
+    @apply btn bg-red-600/20 hover:bg-red-600/40 text-red-400;
+  }
+  .card {
+    @apply bg-zinc-900 border border-zinc-800 rounded-xl;
+  }
+  .input {
+    @apply w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20 transition-all;
+  }
+  .label {
+    @apply block text-xs font-medium text-zinc-400 mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+}
+
+/* react-big-calendar overrides */
+.rbc-calendar {
+  @apply text-zinc-100;
+}
+.rbc-toolbar {
+  @apply mb-4;
+}
+.rbc-toolbar button {
+  @apply text-zinc-300 border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:text-zinc-100;
+}
+.rbc-toolbar button.rbc-active {
+  @apply bg-violet-600 border-violet-600 text-white;
+}
+.rbc-month-view, .rbc-time-view, .rbc-agenda-view {
+  @apply border-zinc-800;
+}
+.rbc-header {
+  @apply border-zinc-800 text-zinc-400 py-2;
+}
+.rbc-day-bg {
+  @apply border-zinc-800;
+}
+.rbc-off-range-bg {
+  @apply bg-zinc-900/50;
+}
+.rbc-today {
+  @apply bg-violet-600/10;
+}
+.rbc-event {
+  @apply bg-violet-600 rounded-md text-xs;
+}
+.rbc-slot-selection {
+  @apply bg-violet-600/20;
+}
+.rbc-time-content {
+  @apply border-zinc-800;
+}
+.rbc-time-header-content {
+  @apply border-zinc-800;
+}
+.rbc-timeslot-group {
+  @apply border-zinc-800;
+}
+.rbc-time-slot {
+  @apply border-zinc-800/50;
+}
+.rbc-label {
+  @apply text-zinc-500 text-xs;
+}
+.rbc-agenda-table {
+  @apply border-zinc-800;
+}
+.rbc-agenda-date-cell, .rbc-agenda-time-cell {
+  @apply text-zinc-400;
+}
+
+/* XY Flow / Mind Map overrides */
+.react-flow__background {
+  @apply bg-zinc-950;
+}
+.react-flow__controls {
+  @apply bg-zinc-900 border-zinc-800;
+}
+.react-flow__controls button {
+  @apply bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700;
+}
+.react-flow__minimap {
+  @apply bg-zinc-900 border border-zinc-800 rounded-lg;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
