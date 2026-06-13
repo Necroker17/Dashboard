@@ -52,60 +52,159 @@
   }
 }
 
-/* react-big-calendar overrides */
+/* ── react-big-calendar overrides ── */
 .rbc-calendar {
-  @apply text-zinc-100;
+  @apply text-zinc-200 font-sans;
+  height: 100%;
 }
+
+/* Toolbar */
 .rbc-toolbar {
-  @apply mb-4;
+  @apply mb-5 flex items-center justify-between flex-wrap gap-2;
+}
+.rbc-btn-group {
+  @apply flex gap-1;
 }
 .rbc-toolbar button {
-  @apply text-zinc-300 border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:text-zinc-100;
+  @apply border border-zinc-700 bg-zinc-800 text-zinc-300
+         hover:bg-zinc-700 hover:text-zinc-100
+         rounded-lg px-4 py-2 text-sm font-medium transition-colors cursor-pointer;
 }
-.rbc-toolbar button.rbc-active {
-  @apply bg-violet-600 border-violet-600 text-white;
+.rbc-toolbar button.rbc-active,
+.rbc-toolbar button.rbc-active:hover {
+  @apply bg-violet-600 border-violet-500 text-white;
 }
-.rbc-month-view, .rbc-time-view, .rbc-agenda-view {
-  @apply border-zinc-800;
+.rbc-toolbar-label {
+  @apply text-zinc-100 font-semibold text-base;
 }
+
+/* Month view container */
+.rbc-month-view {
+  @apply border border-zinc-700 rounded-2xl overflow-hidden bg-zinc-900;
+}
+
+/* Day-of-week header row */
 .rbc-header {
-  @apply border-zinc-800 text-zinc-400 py-2;
+  @apply bg-zinc-800/80 border-b-2 border-zinc-700 py-3
+         text-zinc-400 text-xs font-semibold uppercase tracking-wider;
 }
-.rbc-day-bg {
-  @apply border-zinc-800;
+.rbc-header + .rbc-header {
+  @apply border-l border-zinc-700;
 }
+
+/* Calendar rows — force a minimum height so cells aren't tiny */
+.rbc-month-row {
+  @apply border-b border-zinc-700;
+  min-height: 130px !important;
+}
+.rbc-row-bg {
+  height: 100%;
+}
+
+/* Day cell borders */
+.rbc-day-bg + .rbc-day-bg {
+  @apply border-l border-zinc-700;
+}
+.rbc-day-bg:hover {
+  @apply bg-zinc-800/20;
+}
+
+/* Off-range (prev/next month) */
 .rbc-off-range-bg {
-  @apply bg-zinc-900/50;
+  @apply bg-zinc-950/70;
 }
+.rbc-off-range .rbc-button-link {
+  @apply text-zinc-600;
+}
+
+/* Today highlight */
 .rbc-today {
   @apply bg-violet-600/10;
 }
+
+/* Date number in each cell */
+.rbc-date-cell {
+  @apply py-2 pr-2 text-right;
+}
+.rbc-date-cell .rbc-button-link {
+  @apply text-sm text-zinc-300 hover:text-violet-400 font-medium transition-colors
+         inline-flex items-center justify-center w-7 h-7 rounded-full;
+}
+.rbc-today .rbc-date-cell .rbc-button-link {
+  @apply bg-violet-600 text-white hover:bg-violet-500 hover:text-white;
+}
+
+/* Events */
 .rbc-event {
-  @apply bg-violet-600 rounded-md text-xs;
+  @apply text-xs font-medium border-0 rounded-md px-2 py-0.5 cursor-pointer;
+}
+.rbc-event:focus {
+  @apply outline-none ring-2 ring-violet-400/50;
+}
+.rbc-event-content {
+  @apply truncate;
+}
+.rbc-show-more {
+  @apply text-xs text-violet-400 hover:text-violet-300 bg-transparent px-1 font-medium;
 }
 .rbc-slot-selection {
   @apply bg-violet-600/20;
 }
-.rbc-time-content {
-  @apply border-zinc-800;
+
+/* Week / Day views */
+.rbc-time-view {
+  @apply border border-zinc-700 rounded-2xl overflow-hidden bg-zinc-900;
 }
 .rbc-time-header-content {
-  @apply border-zinc-800;
+  @apply border-l border-zinc-700;
+}
+.rbc-time-content {
+  @apply border-t border-zinc-700;
+}
+.rbc-time-content > * + * > * {
+  @apply border-l border-zinc-700;
 }
 .rbc-timeslot-group {
-  @apply border-zinc-800;
+  @apply border-b border-zinc-800/40;
+  min-height: 52px;
 }
 .rbc-time-slot {
-  @apply border-zinc-800/50;
+  @apply border-zinc-800/20;
 }
 .rbc-label {
-  @apply text-zinc-500 text-xs;
+  @apply text-zinc-500 text-xs pr-3;
+}
+.rbc-time-header-gutter {
+  @apply border-b border-zinc-700;
+}
+.rbc-allday-cell {
+  @apply border-b border-zinc-700;
+}
+.rbc-current-time-indicator {
+  @apply bg-violet-400;
+  height: 2px;
+}
+
+/* Agenda view */
+.rbc-agenda-view {
+  @apply border border-zinc-700 rounded-2xl overflow-hidden;
 }
 .rbc-agenda-table {
-  @apply border-zinc-800;
+  @apply w-full;
 }
-.rbc-agenda-date-cell, .rbc-agenda-time-cell {
-  @apply text-zinc-400;
+.rbc-agenda-table thead tr th {
+  @apply bg-zinc-800 border-b border-zinc-700 py-3 px-4
+         text-left text-xs font-semibold text-zinc-400 uppercase tracking-wider;
+}
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell {
+  @apply text-zinc-400 border-b border-zinc-800 py-3 px-4 text-sm;
+}
+.rbc-agenda-event-cell {
+  @apply border-b border-zinc-800 py-3 px-4 text-sm text-zinc-200;
+}
+.rbc-agenda-empty {
+  @apply py-16 text-center text-zinc-500 text-sm;
 }
 
 /* XY Flow / Mind Map overrides */

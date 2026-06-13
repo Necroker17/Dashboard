@@ -75,7 +75,7 @@ export const PROVIDERS = {
   },
 }
 
-async function callGroq(messages, model, apiKey) {
+async function callGroq(messages, model, apiKey, sys = SYSTEM_PROMPT) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -86,7 +86,7 @@ async function callGroq(messages, model, apiKey) {
       model,
       max_tokens: 4096,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: sys },
         ...messages.map(m => ({ role: m.role, content: m.content })),
       ],
     }),
@@ -99,7 +99,7 @@ async function callGroq(messages, model, apiKey) {
   return data.choices[0].message.content
 }
 
-async function callAnthropic(messages, model, apiKey) {
+async function callAnthropic(messages, model, apiKey, sys = SYSTEM_PROMPT) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -111,7 +111,7 @@ async function callAnthropic(messages, model, apiKey) {
     body: JSON.stringify({
       model,
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: sys,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
     }),
   })
@@ -123,7 +123,7 @@ async function callAnthropic(messages, model, apiKey) {
   return data.content[0].text
 }
 
-async function callGemini(messages, model, apiKey) {
+async function callGemini(messages, model, apiKey, sys = SYSTEM_PROMPT) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
   const contents = messages.map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
@@ -133,7 +133,7 @@ async function callGemini(messages, model, apiKey) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: sys }] },
       contents,
       generationConfig: { maxOutputTokens: 4096 },
     }),
@@ -146,7 +146,7 @@ async function callGemini(messages, model, apiKey) {
   return data.candidates[0].content.parts[0].text
 }
 
-async function callOpenAI(messages, model, apiKey) {
+async function callOpenAI(messages, model, apiKey, sys = SYSTEM_PROMPT) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -157,7 +157,7 @@ async function callOpenAI(messages, model, apiKey) {
       model,
       max_tokens: 4096,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: sys },
         ...messages.map(m => ({ role: m.role, content: m.content })),
       ],
     }),
@@ -170,15 +170,26 @@ async function callOpenAI(messages, model, apiKey) {
   return data.choices[0].message.content
 }
 
-export async function sendMessage(messages, providerId, model, apiKey) {
+export async function sendMessage(messages, providerId, model, apiKey, systemPrompt) {
   if (!apiKey) throw new Error(`API key de ${PROVIDERS[providerId]?.name} no configurada`)
+  const sys = systemPrompt || SYSTEM_PROMPT
   switch (providerId) {
-    case 'groq':      return callGroq(messages, model, apiKey)
-    case 'anthropic': return callAnthropic(messages, model, apiKey)
-    case 'gemini':    return callGemini(messages, model, apiKey)
-    case 'openai':    return callOpenAI(messages, model, apiKey)
+    case 'groq':      return callGroq(messages, model, apiKey, sys)
+    case 'anthropic': return callAnthropic(messages, model, apiKey, sys)
+    case 'gemini':    return callGemini(messages, model, apiKey, sys)
+    case 'openai':    return callOpenAI(messages, model, apiKey, sys)
     default:          throw new Error(`Proveedor desconocido: ${providerId}`)
   }
+}
+
+const TASK_FILL_PROMPT = `Extract task details from the user's description. Return ONLY valid JSON, no other text:
+{"title":"concise task title (max 60 chars)","description":"optional details or empty string","priority":"urgent|high|medium|low","tags":["tag1"]}
+Priority guide: urgente/ahora/hoy → urgent, importante/pronto → high, normal → medium, luego/después → low.
+Tags: 1-3 short relevant tags in the same language as the input.`
+
+export async function extractTaskFromText(text, providerId, model, apiKey) {
+  if (!apiKey) throw new Error('No hay API key configurada')
+  return sendMessage([{ role: 'user', content: text }], providerId, model, apiKey, TASK_FILL_PROMPT)
 }
 
 export function tryParsePlan(text) {

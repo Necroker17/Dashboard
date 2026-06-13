@@ -64,11 +64,14 @@ export default function Layout({ children }) {
             {children}
           </div>
 
-          {/* AI Panel */}
+          {/* AI Panel — fixed overlay so it doesn't compress content */}
           {aiOpen && (
-            <div className="w-80 border-l border-zinc-800 flex-shrink-0">
-              <AIAssistant onClose={() => setAiOpen(false)} />
-            </div>
+            <>
+              <div className="fixed inset-0 z-30 bg-black/30 backdrop-blur-sm" onClick={() => setAiOpen(false)} />
+              <div className="fixed right-0 top-0 bottom-0 w-[420px] border-l border-zinc-800 z-40 shadow-2xl bg-zinc-950">
+                <AIAssistant onClose={() => setAiOpen(false)} />
+              </div>
+            </>
           )}
         </main>
       </div>

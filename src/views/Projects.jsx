@@ -4,9 +4,10 @@ import { useDashboard } from '../context/DashboardContext'
 import Modal from '../components/Modal'
 import { useSearchParams } from 'react-router-dom'
 import {
-  Plus, MoreHorizontal, Pencil, Trash2, Clock, Tag,
-  AlertCircle, ChevronDown, X, Check, Kanban
+  Plus, MoreHorizontal, Pencil, Trash2, Clock,
+  ChevronDown, X, Check, Kanban
 } from 'lucide-react'
+import AIQuickFill from '../components/AIQuickFill'
 
 const COLUMNS = [
   { id: 'backlog', label: 'Backlog', color: '#6b7280' },
@@ -97,6 +98,13 @@ function TaskForm({ task, projects, projectId, onSave, onClose }) {
 
   return (
     <div className="space-y-4">
+      <AIQuickFill onFill={data => setForm(f => ({
+        ...f,
+        title: data.title || f.title,
+        description: data.description || f.description,
+        priority: data.priority || f.priority,
+        tags: data.tags !== undefined ? data.tags : f.tags,
+      }))} />
       <div>
         <label className="label">Título *</label>
         <input className="input" value={form.title} onChange={e => set('title', e.target.value)} placeholder="¿Qué hay que hacer?" />

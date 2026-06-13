@@ -20,6 +20,8 @@ const navItems = [
   { label: 'Eisenhower', path: '/eisenhower', icon: Map },
   { label: 'Mapa Mental', path: '/mindmap', icon: Brain },
   { label: 'Analytics', path: '/analytics', icon: BarChart3 },
+  { divider: true, label: 'Sistema' },
+  { label: 'Configuración', path: '/settings', icon: Settings },
 ]
 
 function NavItem({ item }) {
