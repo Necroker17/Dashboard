@@ -14,19 +14,42 @@ const messages = {
   date: 'Fecha', time: 'Hora', event: 'Evento', noEventsInRange: 'Sin eventos',
 }
 
-function EventForm({ event, onSave, onClose }) {
+// <input type="datetime-local"> only accepts YYYY-MM-DDTHH:mm in LOCAL time.
+// A timestamptz from Postgres ("2026-09-13T15:00:00+00:00") is rejected outright
+// and the field renders blank, so convert in both directions.
+const toLocalInput = (value) => {
+  if (!value) return ''
+  const d = new Date(value)
+  if (isNaN(d)) return ''
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
+}
+const toISO = (localValue) => {
+  if (!localValue) return ''
+  const d = new Date(localValue)
+  return isNaN(d) ? '' : d.toISOString()
+}
+
+function EventForm({ event, defaultStart, onSave, onClose }) {
   const { projects } = useDashboard()
   const [form, setForm] = useState({
     title: event?.title || '',
     description: event?.description || '',
-    start_datetime: event?.start_datetime || new Date().toISOString().slice(0, 16),
-    end_datetime: event?.end_datetime || '',
+    start_datetime: toLocalInput(event?.start_datetime || defaultStart || new Date()),
+    end_datetime: toLocalInput(event?.end_datetime),
     all_day: event?.all_day || false,
     color: event?.color || '#7c3aed',
     project_id: event?.project_id || '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-  const save = () => { if (form.title.trim()) onSave(form) }
+  const save = () => {
+    if (!form.title.trim()) return
+    onSave({
+      ...form,
+      start_datetime: toISO(form.start_datetime),
+      end_datetime: toISO(form.end_datetime),
+    })
+  }
 
   const COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2']
 
@@ -45,7 +68,7 @@ function EventForm({ event, onSave, onClose }) {
         </div>
       )}
       {form.all_day && (
-        <div><label className="label">Fecha</label><input type="date" className="input" value={form.start_datetime?.split('T')[0]} onChange={e => set('start_datetime', e.target.value + 'T00:00')} /></div>
+        <div><label className="label">Fecha</label><input type="date" className="input" value={form.start_datetime?.split('T')[0] || ''} onChange={e => set('start_datetime', e.target.value + 'T00:00')} /></div>
       )}
       <div>
         <label className="label">Proyecto</label>
@@ -74,6 +97,7 @@ export default function CalendarView() {
   const { calendarEvents, tasks, createEvent, updateEvent, deleteEvent } = useDashboard()
   const [modal, setModal] = useState(null)
   const [selectedSlot, setSelectedSlot] = useState(null)
+  const [saveError, setSaveError] = useState('')
 
   const events = [
     ...calendarEvents.map(e => ({
@@ -114,20 +138,24 @@ export default function CalendarView() {
   }, [])
 
   const handleSave = async (form) => {
-    if (modal === 'new') {
-      await createEvent({
-        ...form,
-        start_datetime: selectedSlot ? selectedSlot.toISOString() : form.start_datetime,
-      })
-    } else {
-      await updateEvent(modal.id, form)
+    setSaveError('')
+    try {
+      if (modal === 'new') await createEvent(form)
+      else await updateEvent(modal.id, form)
+      setModal(null)
+    } catch (err) {
+      setSaveError(err.message)
     }
-    setModal(null)
   }
 
   const handleDelete = async () => {
-    if (modal?.id) await deleteEvent(modal.id)
-    setModal(null)
+    setSaveError('')
+    try {
+      if (modal?.id) await deleteEvent(modal.id)
+      setModal(null)
+    } catch (err) {
+      setSaveError(err.message)
+    }
   }
 
   return (
@@ -160,11 +188,15 @@ export default function CalendarView() {
       </div>
 
       {modal !== null && (
-        <Modal title={modal === 'new' ? 'Nuevo evento' : 'Editar evento'} onClose={() => setModal(null)}>
+        <Modal title={modal === 'new' ? 'Nuevo evento' : 'Editar evento'} onClose={() => { setModal(null); setSaveError('') }}>
+          {saveError && (
+            <div className="mb-4 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{saveError}</div>
+          )}
           <EventForm
             event={modal === 'new' ? null : modal}
+            defaultStart={selectedSlot}
             onSave={handleSave}
-            onClose={() => setModal(null)}
+            onClose={() => { setModal(null); setSaveError('') }}
           />
           {modal !== 'new' && (
             <div className="mt-4 pt-4 border-t border-zinc-800">

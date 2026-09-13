@@ -1,34 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sparkles, Loader2, X } from 'lucide-react'
-import { extractTaskFromText, PROVIDERS } from '../lib/ai'
-
-const ENV_KEYS = {
-  groq:      import.meta.env.VITE_GROQ_API_KEY,
-  anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-  gemini:    import.meta.env.VITE_GEMINI_API_KEY,
-  openai:    import.meta.env.VITE_OPENAI_API_KEY,
-}
+import { extractTaskFromText, fetchConfiguredProviders, extractJson, PROVIDERS } from '../lib/ai'
 
 export default function AIQuickFill({ onFill }) {
   const [open, setOpen] = useState(false)
   const [desc, setDesc] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [provider, setProvider] = useState(null)
 
-  const entry = Object.entries(ENV_KEYS).find(([, v]) => v)
+  // Las keys viven en el servidor; solo preguntamos qué proveedor hay activo.
+  useEffect(() => {
+    let cancelled = false
+    fetchConfiguredProviders().then(list => {
+      if (!cancelled) setProvider(list[0] ?? null)
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const fill = async () => {
     if (!desc.trim() || loading) return
-    if (!entry) { setErr('Configura una API key de IA en Vercel para usar esta función.'); return }
-    const [provider, apiKey] = entry
-    const model = PROVIDERS[provider].models[0].id
+    if (!provider) {
+      setErr('No hay ningún proveedor de IA configurado en Vercel.')
+      return
+    }
     setLoading(true)
     setErr('')
     try {
-      const text = await extractTaskFromText(desc, provider, model, apiKey)
-      const match = text.match(/\{[\s\S]*?\}/)
-      if (!match) throw new Error('Respuesta inesperada de la IA')
-      const data = JSON.parse(match[0])
+      const text = await extractTaskFromText(desc, provider, PROVIDERS[provider].models[0].id)
+      const data = extractJson(text)
+      if (!data) throw new Error('La IA no devolvió un JSON válido. Inténtalo de nuevo.')
       onFill({
         title: data.title || '',
         description: data.description || '',
@@ -63,7 +64,7 @@ export default function AIQuickFill({ onFill }) {
         <div className="flex items-center gap-1.5">
           <Sparkles size={12} className="text-violet-400" />
           <span className="text-xs font-medium text-violet-300">Rellenar con IA</span>
-          {entry && <span className="text-xs text-zinc-600">· {PROVIDERS[entry[0]]?.name}</span>}
+          {provider && <span className="text-xs text-zinc-600">· {PROVIDERS[provider]?.name}</span>}
         </div>
         <button type="button" onClick={() => setOpen(false)} className="text-zinc-600 hover:text-zinc-400 p-0.5 rounded">
           <X size={12} />

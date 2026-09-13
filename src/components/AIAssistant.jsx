@@ -1,21 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useDashboard } from '../context/DashboardContext'
-import { sendMessage, tryParsePlan, planToTasks, PROVIDERS } from '../lib/ai'
+import { sendMessage, tryParsePlan, planToTasks, fetchConfiguredProviders, PROVIDERS } from '../lib/ai'
 import { Bot, Send, X, Sparkles, Loader2, Plus, ChevronDown, ExternalLink } from 'lucide-react'
 
-const ENV_KEYS = {
-  groq:      import.meta.env.VITE_GROQ_API_KEY,
-  anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-  gemini:    import.meta.env.VITE_GEMINI_API_KEY,
-  openai:    import.meta.env.VITE_OPENAI_API_KEY,
-}
-
-// Detect which providers are configured
-const CONFIGURED = Object.fromEntries(
-  Object.entries(ENV_KEYS).map(([k, v]) => [k, !!v])
-)
-
-const DEFAULT_PROVIDER = Object.keys(CONFIGURED).find(k => CONFIGURED[k]) || 'groq'
+// Las API keys viven en el servidor (api/ai.js). El navegador solo pregunta
+// qué proveedores están configurados, nunca ve una key.
+const DEFAULT_PROVIDER = 'groq'
 
 function PlanPreview({ plan, onImport, importing }) {
   const PCOLORS = { urgent: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-yellow-500', low: 'bg-green-500' }
@@ -44,7 +34,7 @@ function PlanPreview({ plan, onImport, importing }) {
   )
 }
 
-function ProviderSelector({ provider, model, onChangeProvider, onChangeModel }) {
+function ProviderSelector({ provider, model, configured, onChangeProvider, onChangeModel }) {
   const [open, setOpen] = useState(false)
   const p = PROVIDERS[provider]
 
@@ -57,7 +47,7 @@ function ProviderSelector({ provider, model, onChangeProvider, onChangeModel }) 
         <span className="font-medium text-zinc-200">{p.name}</span>
         <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ backgroundColor: p.color + '30', color: p.color }}>{p.badge}</span>
         <span className="text-zinc-500 flex-1 text-left truncate">{p.models.find(m => m.id === model)?.label || model}</span>
-        {!CONFIGURED[provider] && <span className="text-amber-400 text-xs">sin key</span>}
+        {!configured[provider] && <span className="text-amber-400 text-xs">sin key</span>}
         <ChevronDown size={12} className={`text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
@@ -70,7 +60,7 @@ function ProviderSelector({ provider, model, onChangeProvider, onChangeModel }) 
                   <span className="text-xs font-semibold text-zinc-300">{prov.name}</span>
                   <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ backgroundColor: prov.color + '30', color: prov.color }}>{prov.badge}</span>
                 </div>
-                {!CONFIGURED[pid] ? (
+                {!configured[pid] ? (
                   <a href={prov.signupUrl} target="_blank" rel="noreferrer" className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
                     Obtener key <ExternalLink size={10} />
                   </a>
@@ -82,11 +72,11 @@ function ProviderSelector({ provider, model, onChangeProvider, onChangeModel }) 
                 <button
                   key={m.id}
                   onClick={() => { onChangeProvider(pid); onChangeModel(m.id); setOpen(false) }}
-                  disabled={!CONFIGURED[pid]}
+                  disabled={!configured[pid]}
                   className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
                     provider === pid && model === m.id
                       ? 'bg-violet-600/20 text-violet-300'
-                      : CONFIGURED[pid]
+                      : configured[pid]
                         ? 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
                         : 'text-zinc-600 cursor-not-allowed'
                   }`}
@@ -115,9 +105,24 @@ export default function AIAssistant({ onClose }) {
   const [importingIdx, setImportingIdx] = useState(null)
   const [selectedProject, setSelectedProject] = useState('')
   const [sessionId, setSessionId] = useState(null)
+  const [configured, setConfigured] = useState({})
   const endRef = useRef(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  // Pregunta al servidor qué proveedores tienen key, y selecciona el primero.
+  useEffect(() => {
+    let cancelled = false
+    fetchConfiguredProviders().then(list => {
+      if (cancelled) return
+      setConfigured(Object.fromEntries(list.map(id => [id, true])))
+      if (list.length && !list.includes(DEFAULT_PROVIDER)) {
+        setProvider(list[0])
+        setModel(PROVIDERS[list[0]].models[0].id)
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
 
   // Keep default model in sync when provider changes
   const handleChangeProvider = (pid) => {
@@ -127,11 +132,10 @@ export default function AIAssistant({ onClose }) {
 
   const send = async () => {
     if (!input.trim() || loading) return
-    const apiKey = ENV_KEYS[provider]
-    if (!apiKey) {
+    if (configured[provider] === false || (Object.keys(configured).length && !configured[provider])) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `⚠️ Configura la API key de ${PROVIDERS[provider].name} en Vercel:\nVariable: \`${PROVIDERS[provider].envKey}\`\nObtenerla en: ${PROVIDERS[provider].signupUrl}`
+        content: `⚠️ Falta configurar ${PROVIDERS[provider].name} en Vercel.\nVariable: \`${PROVIDERS[provider].envKey}\` (sin el prefijo VITE_)\nObtener la key en: ${PROVIDERS[provider].signupUrl}`
       }])
       return
     }
@@ -143,19 +147,25 @@ export default function AIAssistant({ onClose }) {
     setLoading(true)
 
     try {
-      const text = await sendMessage(newMsgs, provider, model, apiKey)
+      const text = await sendMessage(newMsgs, provider, model)
       const plan = tryParsePlan(text)
       const assistantMsg = { role: 'assistant', content: text, plan }
       const finalMsgs = [...newMsgs, assistantMsg]
       setMessages(finalMsgs)
 
-      const session = await saveAiSession({
-        id: sessionId || undefined,
-        title: userMsg.content.slice(0, 50),
-        messages: finalMsgs.map(m => ({ role: m.role, content: m.content })),
-        model: `${provider}/${model}`,
-      })
-      setSessionId(session.id)
+      // Persisting the transcript is a nice-to-have. If it fails (RLS, network),
+      // that must not look like the answer itself failed.
+      try {
+        const session = await saveAiSession({
+          id: sessionId || undefined,
+          title: userMsg.content.slice(0, 50),
+          messages: finalMsgs.map(m => ({ role: m.role, content: m.content })),
+          model: `${provider}/${model}`,
+        })
+        setSessionId(session.id)
+      } catch (saveErr) {
+        console.warn('No se pudo guardar la sesión de IA:', saveErr.message)
+      }
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -212,6 +222,7 @@ export default function AIAssistant({ onClose }) {
         <ProviderSelector
           provider={provider}
           model={model}
+          configured={configured}
           onChangeProvider={handleChangeProvider}
           onChangeModel={setModel}
         />

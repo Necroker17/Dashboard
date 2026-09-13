@@ -127,6 +127,7 @@ export default function Goals() {
   const { goals, projects, createGoal, updateGoal, deleteGoal } = useDashboard()
   const [modal, setModal] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [saveError, setSaveError] = useState('')
 
   const filtered = goals.filter(g => filter === 'all' || g.status === filter)
   const active = goals.filter(g => g.status === 'active')
@@ -134,9 +135,14 @@ export default function Goals() {
   const avgProgress = active.length ? Math.round(active.reduce((s, g) => s + (g.target_value ? (g.current_value / g.target_value) * 100 : 0), 0) / active.length) : 0
 
   const handleSave = async (form) => {
-    if (modal === 'new') await createGoal(form)
-    else await updateGoal(modal.id, form)
-    setModal(null)
+    setSaveError('')
+    try {
+      if (modal === 'new') await createGoal(form)
+      else await updateGoal(modal.id, form)
+      setModal(null)
+    } catch (err) {
+      setSaveError(err.message)
+    }
   }
 
   return (
@@ -195,8 +201,11 @@ export default function Goals() {
       )}
 
       {modal !== null && (
-        <Modal title={modal === 'new' ? 'Nueva meta' : 'Editar meta'} onClose={() => setModal(null)}>
-          <GoalForm goal={modal === 'new' ? null : modal} projects={projects} onSave={handleSave} onClose={() => setModal(null)} />
+        <Modal title={modal === 'new' ? 'Nueva meta' : 'Editar meta'} onClose={() => { setModal(null); setSaveError('') }}>
+          {saveError && (
+            <div className="mb-4 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{saveError}</div>
+          )}
+          <GoalForm goal={modal === 'new' ? null : modal} projects={projects} onSave={handleSave} onClose={() => { setModal(null); setSaveError('') }} />
         </Modal>
       )}
     </div>
