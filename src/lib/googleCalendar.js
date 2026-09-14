@@ -42,11 +42,32 @@ export async function connectGoogleCalendar() {
   if (error) throw error
 }
 
-// Al volver del consentimiento, la sesión trae provider_refresh_token una única
-// vez. Hay que capturarlo en ese momento o se pierde.
+// Supabase guarda provider_refresh_token dentro de la sesión persistida, así que
+// esto se dispara en cada carga de página, no solo al volver del consentimiento.
+// El servidor ya es idempotente, pero el guardado evita dos POST por arranque.
+let lastSent = null
+
 export async function captureProviderToken(session) {
   const refreshToken = session?.provider_refresh_token
-  if (!refreshToken) return false
-  await call('connect', { refreshToken })
-  return true
+  if (!refreshToken || refreshToken === lastSent) return false
+  lastSent = refreshToken
+  try {
+    await call('connect', { refreshToken })
+    return true
+  } catch (e) {
+    lastSent = null   // reintentar en el próximo evento de sesión
+    throw e
+  }
+}
+
+// Tras el consentimiento, la credencial se guarda de forma asíncrona. Esperar un
+// tiempo fijo es una carrera: en una conexión lenta la sincronización arrancaba
+// antes de que existiera la credencial y fallaba con «no hay cuenta conectada».
+export async function waitForConnection({ tries = 10, delayMs = 600 } = {}) {
+  for (let i = 0; i < tries; i++) {
+    const status = await getSyncStatus().catch(() => null)
+    if (status?.connected) return status
+    await new Promise(r => setTimeout(r, delayMs))
+  }
+  return null
 }

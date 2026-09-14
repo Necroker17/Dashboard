@@ -6,7 +6,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { useDashboard } from '../context/DashboardContext'
 import Modal from '../components/Modal'
 import { Calendar as CalIcon, Plus, Check, RefreshCw, Link2, Unlink, AlertTriangle, Loader2 } from 'lucide-react'
-import { getSyncStatus, runSync, connectGoogleCalendar, disconnectGoogle } from '../lib/googleCalendar'
+import { getSyncStatus, runSync, connectGoogleCalendar, disconnectGoogle, waitForConnection } from '../lib/googleCalendar'
 
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }), getDay, locales: { es } })
 
@@ -31,6 +31,23 @@ const toISO = (localValue) => {
   return isNaN(d) ? '' : d.toISOString()
 }
 
+// Un día completo se guarda a medianoche UTC: así recortar los diez primeros
+// caracteres da el día correcto en cualquier zona horaria.
+const toUtcDay = (value) => {
+  if (!value) return ''
+  const day = String(value).slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T00:00:00.000Z` : ''
+}
+
+// Y al pintarlo hay que reconstruir la fecha desde sus componentes UTC: con
+// new Date('...T00:00:00Z') el navegador lo sitúa en la víspera al oeste de
+// Greenwich, y el calendario lo dibujaría en el día anterior.
+export const eventDate = (value, allDay) => {
+  const d = new Date(value)
+  if (!allDay) return d
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+}
+
 function EventForm({ event, defaultStart, onSave, onClose }) {
   const { projects } = useDashboard()
   const [form, setForm] = useState({
@@ -50,19 +67,19 @@ function EventForm({ event, defaultStart, onSave, onClose }) {
       setFormError('El título es obligatorio.')
       return
     }
-    // start_datetime es NOT NULL en la base: sin esto el error que vería el
-    // usuario sería «null value in column start_datetime violates not-null».
-    const start = toISO(form.start_datetime)
+    // Un evento de día completo es una FECHA, no un instante. Si se guardara
+    // interpretando «2026-09-14T00:00» en hora local, en UTC+2 se almacenaría
+    // como el día 13 a las 22:00 y aparecería en Google un día antes. Se fija a
+    // medianoche UTC para que el día sea el mismo en cualquier zona.
+    const start = form.all_day ? toUtcDay(form.start_datetime) : toISO(form.start_datetime)
+    const end = form.all_day ? toUtcDay(form.end_datetime) : toISO(form.end_datetime)
+
     if (!start) {
       setFormError(form.all_day ? 'Elige una fecha.' : 'Elige una fecha y hora de inicio.')
       return
     }
     setFormError('')
-    onSave({
-      ...form,
-      start_datetime: start,
-      end_datetime: toISO(form.end_datetime),
-    })
+    onSave({ ...form, start_datetime: start, end_datetime: end })
   }
 
   const COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2']
@@ -82,7 +99,7 @@ function EventForm({ event, defaultStart, onSave, onClose }) {
         </div>
       )}
       {form.all_day && (
-        <div><label className="label">Fecha</label><input type="date" className="input" value={form.start_datetime?.split('T')[0] || ''} onChange={e => set('start_datetime', e.target.value + 'T00:00')} /></div>
+        <div><label className="label">Fecha</label><input type="date" className="input" value={form.start_datetime?.slice(0, 10) || ''} onChange={e => set('start_datetime', e.target.value + 'T00:00')} /></div>
       )}
       <div>
         <label className="label">Proyecto</label>
@@ -125,29 +142,50 @@ function GoogleSyncBar({ onSynced, onStatus }) {
 
   useEffect(() => { refresh() }, [refresh])
 
-  // Al volver del consentimiento de Google, el contexto ya guardó el token;
-  // aquí solo hace falta releer el estado y lanzar la primera bajada.
+  // Al volver del consentimiento: se espera a que la credencial exista de verdad
+  // en vez de confiar en un temporizador, y se lanza la primera bajada.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('google') !== 'connected') return
     window.history.replaceState({}, '', window.location.pathname)
-    setBusy(true)
-    setMsg('Conectando con Google...')
-    // El token se guarda en cuanto Supabase entrega la sesión; se espera un
-    // instante para no adelantarse a esa escritura.
-    const t = setTimeout(async () => {
+    let cancelled = false
+
+    ;(async () => {
+      setBusy(true)
+      setMsg('Conectando con Google...')
       try {
+        const connected = await waitForConnection()
+        if (cancelled) return
+        if (!connected) throw new Error('Google no completó la conexión. Vuelve a intentarlo.')
         await refresh()
         const r = await runSync()
+        if (cancelled) return
         setMsg(`Conectado. ${r.pulled} eventos importados.`)
         onSynced?.()
       } catch (e) {
-        setError(e.message)
+        if (!cancelled) setError(e.message)
       } finally {
-        setBusy(false)
+        if (!cancelled) setBusy(false)
       }
-    }, 1200)
-    return () => clearTimeout(t)
+    })()
+
+    return () => { cancelled = true }
   }, [refresh, onSynced])
+
+  // Sin una sincronización automática, un evento borrado aquí se queda marcado
+  // para siempre y nunca desaparece de Google. Se sincroniza al entrar en la
+  // vista, si hace más de cinco minutos de la última vez.
+  useEffect(() => {
+    if (!status?.connected || busy) return
+    const last = status.lastSyncAt ? new Date(status.lastSyncAt).getTime() : 0
+    if (Date.now() - last < 5 * 60 * 1000) return
+    let cancelled = false
+    runSync()
+      .then(() => { if (!cancelled) { refresh(); onSynced?.() } })
+      .catch(() => {})   // en segundo plano: no interrumpir con un aviso
+    return () => { cancelled = true }
+    // Solo al cambiar el estado de conexión, no en cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.connected])
 
   const sync = async () => {
     setBusy(true); setError(''); setMsg('')
@@ -227,8 +265,8 @@ export default function CalendarView() {
     ...calendarEvents.map(e => ({
       id: e.id,
       title: e.title,
-      start: new Date(e.start_datetime),
-      end: e.end_datetime ? new Date(e.end_datetime) : new Date(e.start_datetime),
+      start: eventDate(e.start_datetime, e.all_day),
+      end: eventDate(e.end_datetime || e.start_datetime, e.all_day),
       allDay: e.all_day,
       resource: { type: 'event', color: e.color || '#7c3aed', raw: e, synced: !!e.google_event_id },
     })),
@@ -284,6 +322,9 @@ export default function CalendarView() {
     try {
       if (modal?.id) await deleteEvent(modal.id)
       setModal(null)
+      // La baja se marca localmente; esto la propaga a Google en el momento en
+      // vez de dejarla esperando a la próxima sincronización manual.
+      if (googleConnected) runSync().then(reload).catch(() => {})
     } catch (err) {
       setSaveError(err.message)
     }
