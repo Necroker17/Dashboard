@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useDashboard } from '../context/DashboardContext'
+import { krProgress } from '../lib/okr'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend
@@ -93,7 +94,7 @@ export default function Analytics() {
     // Goals progress
     const goalsData = goals.filter(g => g.target_value).map(g => ({
       name: g.title.slice(0, 15),
-      progreso: Math.min(100, Math.round((g.current_value / g.target_value) * 100)),
+      progreso: krProgress(g),
     }))
 
     // Habit consistency (last 7 days)

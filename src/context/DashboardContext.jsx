@@ -20,6 +20,7 @@ export function DashboardProvider({ children }) {
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
   const [goals, setGoals] = useState([])
+  const [objectives, setObjectives] = useState([])
   const [habits, setHabits] = useState([])
   const [habitHistory, setHabitHistory] = useState([])
   const [calendarEvents, setCalendarEvents] = useState([])
@@ -66,11 +67,12 @@ export function DashboardProvider({ children }) {
         supabase.from('categories').select('*'),
         supabase.from('ai_sessions').select('*').order('created_at', { ascending: false }).limit(20),
         supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('objectives').select('*').order('created_at', { ascending: false }),
       ])
       const [
         { data: p }, { data: t }, { data: g },
         { data: h }, { data: hh }, { data: ce },
-        { data: cats }, { data: sess }, { data: prof },
+        { data: cats }, { data: sess }, { data: prof }, { data: objs },
       ] = results
 
       // Don't swallow failures: an RLS rejection or a network blip used to look
@@ -87,6 +89,7 @@ export function DashboardProvider({ children }) {
       setCategories(cats || [])
       setAiSessions(sess || [])
       setProfile(prof || null)
+      setObjectives(objs || [])
     } finally {
       setLoading(false)
     }
@@ -172,6 +175,27 @@ export function DashboardProvider({ children }) {
     if (error) throw error
     setTasks(prev => [...prev, ...d])
     return d
+  }
+
+  // OBJECTIVES CRUD (OKRs: un objetivo agrupa varios resultados clave)
+  const createObjective = async (data) => {
+    const { data: d, error } = await supabase.from('objectives').insert({ ...clean(data), user_id: user.id }).select().single()
+    if (error) throw error
+    setObjectives(prev => [d, ...prev])
+    return d
+  }
+  const updateObjective = async (id, data) => {
+    const { data: d, error } = await supabase.from('objectives').update(clean(data)).eq('id', id).eq('user_id', user.id).select().single()
+    if (error) throw error
+    setObjectives(prev => prev.map(o => o.id === id ? d : o))
+    return d
+  }
+  const deleteObjective = async (id) => {
+    const { error } = await supabase.from('objectives').delete().eq('id', id).eq('user_id', user.id)
+    if (error) throw error
+    setObjectives(prev => prev.filter(o => o.id !== id))
+    // La clave foránea es ON DELETE SET NULL: los resultados clave sobreviven sueltos.
+    setGoals(prev => prev.map(g => g.objective_id === id ? { ...g, objective_id: null } : g))
   }
 
   // GOALS CRUD
@@ -261,9 +285,10 @@ export function DashboardProvider({ children }) {
   return (
     <Ctx.Provider value={{
       user, profile, loading, loadError,
-      projects, tasks, goals, habits, habitHistory, calendarEvents, categories, aiSessions,
+      projects, tasks, goals, objectives, habits, habitHistory, calendarEvents, categories, aiSessions,
       createProject, updateProject, deleteProject,
       createTask, updateTask, deleteTask, bulkCreateTasks, reorderTasks,
+      createObjective, updateObjective, deleteObjective,
       createGoal, updateGoal, deleteGoal,
       createHabit, toggleHabit, deleteHabit,
       createEvent, updateEvent, deleteEvent,

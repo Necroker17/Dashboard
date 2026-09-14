@@ -4,6 +4,7 @@ import { es } from 'date-fns/locale'
 import { CheckSquare, Target, Kanban, Flame, TrendingUp, Clock, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { krProgress } from '../lib/okr'
 
 function StatCard({ label, value, sub, icon: Icon, color }) {
   return (
@@ -185,7 +186,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {activeGoals.slice(0, 4).map(g => {
-                  const pct = g.target_value ? Math.min(100, Math.round((g.current_value / g.target_value) * 100)) : 0
+                  const pct = krProgress(g)
                   return (
                     <div key={g.id}>
                       <div className="flex justify-between text-xs mb-1">
