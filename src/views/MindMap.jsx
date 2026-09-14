@@ -212,8 +212,14 @@ export default function MindMap() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
+  // El grafo se recalcula cuando cambian proyectos o tareas, pero conservando la
+  // posición de los nodos que el usuario haya movido a mano: sin esto, cualquier
+  // recarga de datos devolvía todo al trazado automático.
   useEffect(() => {
-    setNodes(initialNodes)
+    setNodes(prev => {
+      const moved = new Map(prev.map(n => [n.id, n.position]))
+      return initialNodes.map(n => (moved.has(n.id) ? { ...n, position: moved.get(n.id) } : n))
+    })
     setEdges(initialEdges)
   }, [initialNodes, initialEdges, setNodes, setEdges])
 

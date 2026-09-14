@@ -135,6 +135,38 @@ export function DashboardProvider({ children }) {
     if (error) throw error
     setTasks(prev => prev.filter(t => t.id !== id))
   }
+  // Reordenar NO es editar: updateTask estampa updated_at, y Analytics deriva de
+  // ese campo el historial de completadas. Renumerar una columna de 20 tarjetas
+  // con updateTask les ponía a las 20 la fecha de hoy y borraba las reales.
+  // Aquí solo se escriben las filas que de verdad cambian, y sin tocar updated_at.
+  const reorderTasks = async (updates) => {
+    const changed = updates.filter(u => {
+      const current = tasks.find(t => t.id === u.id)
+      return current && (current.position !== u.position || current.status !== u.status)
+    })
+    if (changed.length === 0) return
+
+    // Optimista primero: el tablero no debe esperar a la red para verse bien.
+    const snapshot = tasks
+    setTasks(prev => prev.map(t => {
+      const u = changed.find(c => c.id === t.id)
+      return u ? { ...t, position: u.position, status: u.status } : t
+    }))
+
+    const results = await Promise.all(
+      changed.map(u =>
+        supabase.from('tasks')
+          .update({ position: u.position, status: u.status })
+          .eq('id', u.id).eq('user_id', user.id)
+      )
+    )
+    const failed = results.find(r => r.error)
+    if (failed) {
+      setTasks(snapshot)  // revertir: el orden mostrado nunca llegó a la base
+      throw failed.error
+    }
+  }
+
   const bulkCreateTasks = async (taskList) => {
     const { data: d, error } = await supabase.from('tasks').insert(taskList.map(t => ({ ...clean(t), user_id: user.id }))).select()
     if (error) throw error
@@ -231,7 +263,7 @@ export function DashboardProvider({ children }) {
       user, profile, loading, loadError,
       projects, tasks, goals, habits, habitHistory, calendarEvents, categories, aiSessions,
       createProject, updateProject, deleteProject,
-      createTask, updateTask, deleteTask, bulkCreateTasks,
+      createTask, updateTask, deleteTask, bulkCreateTasks, reorderTasks,
       createGoal, updateGoal, deleteGoal,
       createHabit, toggleHabit, deleteHabit,
       createEvent, updateEvent, deleteEvent,

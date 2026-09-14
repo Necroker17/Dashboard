@@ -275,7 +275,7 @@ function ProjectForm({ project, onSave, onClose }) {
 }
 
 export default function Projects() {
-  const { projects, tasks, createProject, updateProject, deleteProject, createTask, updateTask, deleteTask } = useDashboard()
+  const { projects, tasks, createProject, updateProject, deleteProject, createTask, updateTask, deleteTask, reorderTasks } = useDashboard()
   const [searchParams] = useSearchParams()
   const focusId = searchParams.get('id')
 
@@ -283,7 +283,6 @@ export default function Projects() {
   const [taskModal, setTaskModal] = useState(null) // null | 'new' | task object
   const [projectModal, setProjectModal] = useState(null)
   const [newTaskCol, setNewTaskCol] = useState('todo')
-  const [localOrder, setLocalOrder] = useState(null)
   const [boardError, setBoardError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
 
@@ -301,21 +300,15 @@ export default function Projects() {
     (a, b) => (a.position ?? 0) - (b.position ?? 0) || String(a.created_at).localeCompare(String(b.created_at))
   )
 
-  const withPendingOrder = (list) => {
-    if (!localOrder) return list
-    const pending = new Map(localOrder.map(r => [r.id, r]))
-    return list.map(t => (pending.has(t.id) ? { ...t, ...pending.get(t.id) } : t))
-  }
-
   // Lo que se ve en la columna (respeta la pestaña de proyecto seleccionada)
   const getColTasks = (colId) =>
-    sortByPosition(withPendingOrder(filteredTasks).filter(t => t.status === colId))
+    sortByPosition(filteredTasks.filter(t => t.status === colId))
 
   // La columna entera, ignorando el filtro: es sobre esta que hay que renumerar,
   // o con una pestaña activa las posiciones se escriben relativas al subconjunto
   // y se pisan con las de los demás proyectos.
   const getFullColTasks = (colId) =>
-    sortByPosition(withPendingOrder(tasks).filter(t => t.status === colId))
+    sortByPosition(tasks.filter(t => t.status === colId))
 
   // Antes solo se escribía la posición de la tarjeta movida: sus vecinas
   // conservaban la suya, las posiciones se duplicaban y el orden se resolvía por
@@ -340,15 +333,12 @@ export default function Projects() {
 
     const reordered = column.map((t, i) => ({ id: t.id, status: newStatus, position: i }))
 
-    // Optimista: sin esto la tarjeta salta a su sitio viejo hasta que responde la red.
-    setLocalOrder(reordered)
-
+    // reorderTasks aplica el orden al estado antes de escribir, y lo revierte si
+    // la base lo rechaza: no hace falta un estado optimista paralelo aquí.
     try {
-      await Promise.all(reordered.map(r => updateTask(r.id, { status: r.status, position: r.position })))
+      await reorderTasks(reordered)
     } catch (err) {
       setBoardError(err.message)
-    } finally {
-      setLocalOrder(null)
     }
   }
 

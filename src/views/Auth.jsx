@@ -52,12 +52,15 @@ export default function Auth() {
           options: { data: { name } }
         })
         if (error) throw error
-        // El trigger handle_new_user ya crea la fila; esto solo añade el nombre.
-        // 'plan' se omite a propósito: es el derecho de acceso y el cliente ya no
-        // tiene permiso de escritura sobre esa columna (la rellena su DEFAULT).
+        // El trigger handle_new_user ya creó la fila con id y email; aquí solo
+        // falta el nombre. Un upsert fallaría: compila a ON CONFLICT DO UPDATE
+        // sobre todas las columnas enviadas, e id/email ya no tienen permiso de
+        // UPDATE (igual que 'plan', que es el derecho de acceso).
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          await supabase.from('profiles').upsert({ id: user.id, email, name })
+        if (user && name) {
+          const { error: profileError } = await supabase
+            .from('profiles').update({ name }).eq('id', user.id)
+          if (profileError) console.warn('No se pudo guardar el nombre:', profileError.message)
         }
         setSuccess('Cuenta creada. Revisa tu email para confirmar.')
         return

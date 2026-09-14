@@ -101,14 +101,14 @@ export default function Eisenhower() {
   const onDragEnd = async ({ source, destination, draggableId }) => {
     if (!destination || source.droppableId === destination.droppableId) return
     const newQuadrant = destination.droppableId
-    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'urgent', q4: 'low' }
+    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'medium', q4: 'low' }
     await updateTask(draggableId, { quadrant: newQuadrant, priority: priorityMap[newQuadrant] })
   }
 
   const handleQuickAdd = async (e) => {
     e.preventDefault()
     if (!newTitle.trim()) return
-    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'urgent', q4: 'low' }
+    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'medium', q4: 'low' }
     await createTask({ title: newTitle, status: 'todo', priority: priorityMap[quickAdd], quadrant: quickAdd })
     setNewTitle('')
     setQuickAdd(null)
