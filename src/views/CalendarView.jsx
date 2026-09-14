@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { useDashboard } from '../context/DashboardContext'
 import Modal from '../components/Modal'
-import { Calendar as CalIcon, Plus, Check } from 'lucide-react'
+import { Calendar as CalIcon, Plus, Check, RefreshCw, Link2, Unlink, AlertTriangle, Loader2 } from 'lucide-react'
+import { getSyncStatus, runSync, connectGoogleCalendar, disconnectGoogle } from '../lib/googleCalendar'
 
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }), getDay, locales: { es } })
 
@@ -109,11 +110,118 @@ function EventForm({ event, defaultStart, onSave, onClose }) {
   )
 }
 
+function GoogleSyncBar({ onSynced, onStatus }) {
+  const [status, setStatus] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [error, setError] = useState('')
+
+  const refresh = useCallback(async () => {
+    let next
+    try { next = await getSyncStatus() } catch { next = { connected: false } }
+    setStatus(next)
+    onStatus?.(next.connected)
+  }, [onStatus])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  // Al volver del consentimiento de Google, el contexto ya guardó el token;
+  // aquí solo hace falta releer el estado y lanzar la primera bajada.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('google') !== 'connected') return
+    window.history.replaceState({}, '', window.location.pathname)
+    setBusy(true)
+    setMsg('Conectando con Google...')
+    // El token se guarda en cuanto Supabase entrega la sesión; se espera un
+    // instante para no adelantarse a esa escritura.
+    const t = setTimeout(async () => {
+      try {
+        await refresh()
+        const r = await runSync()
+        setMsg(`Conectado. ${r.pulled} eventos importados.`)
+        onSynced?.()
+      } catch (e) {
+        setError(e.message)
+      } finally {
+        setBusy(false)
+      }
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [refresh, onSynced])
+
+  const sync = async () => {
+    setBusy(true); setError(''); setMsg('')
+    try {
+      const r = await runSync()
+      const parts = []
+      if (r.pulled) parts.push(`${r.pulled} de Google`)
+      if (r.pushed) parts.push(`${r.pushed} enviados`)
+      if (r.removed) parts.push(`${r.removed} eliminados`)
+      setMsg(parts.length ? `Sincronizado: ${parts.join(' · ')}` : 'Todo estaba al día.')
+      await refresh()
+      onSynced?.()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disconnect = async () => {
+    setBusy(true); setError(''); setMsg('')
+    try {
+      await disconnectGoogle()
+      await refresh()
+      setMsg('Cuenta desconectada. Los eventos ya importados se quedan aquí.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!status) return null
+
+  return (
+    <div className="mb-4 flex items-center gap-3 flex-wrap text-sm">
+      {status.connected ? (
+        <>
+          <button onClick={sync} disabled={busy} className="btn-ghost border border-zinc-700 disabled:opacity-50">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            Sincronizar con Google
+          </button>
+          <span className="text-xs text-zinc-500">
+            {status.lastSyncAt
+              ? `Última vez: ${format(new Date(status.lastSyncAt), "d MMM HH:mm", { locale: es })}`
+              : 'Aún sin sincronizar'}
+          </span>
+          <button onClick={disconnect} disabled={busy} className="text-xs text-zinc-600 hover:text-red-400 flex items-center gap-1 ml-auto">
+            <Unlink size={11} /> Desconectar
+          </button>
+        </>
+      ) : (
+        <button onClick={() => connectGoogleCalendar().catch(e => setError(e.message))} className="btn-ghost border border-zinc-700">
+          <Link2 size={14} /> Conectar Google Calendar
+        </button>
+      )}
+
+      {msg && <span className="text-xs text-green-400">{msg}</span>}
+
+      {(error || status.lastError) && (
+        <span className="text-xs text-red-400 flex items-center gap-1.5 w-full">
+          <AlertTriangle size={12} className="flex-shrink-0" /> {error || status.lastError}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function CalendarView() {
-  const { calendarEvents, tasks, createEvent, updateEvent, deleteEvent } = useDashboard()
+  const { calendarEvents, tasks, createEvent, updateEvent, deleteEvent, reload } = useDashboard()
   const [modal, setModal] = useState(null)
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [saveError, setSaveError] = useState('')
+  const [googleConnected, setGoogleConnected] = useState(false)
 
   const events = [
     ...calendarEvents.map(e => ({
@@ -122,7 +230,7 @@ export default function CalendarView() {
       start: new Date(e.start_datetime),
       end: e.end_datetime ? new Date(e.end_datetime) : new Date(e.start_datetime),
       allDay: e.all_day,
-      resource: { type: 'event', color: e.color || '#7c3aed', raw: e },
+      resource: { type: 'event', color: e.color || '#7c3aed', raw: e, synced: !!e.google_event_id },
     })),
     ...tasks.filter(t => t.due_date && t.status !== 'done').map(t => ({
       id: `task-${t.id}`,
@@ -134,15 +242,22 @@ export default function CalendarView() {
     })),
   ]
 
-  const eventStyleGetter = (event) => ({
-    style: {
-      backgroundColor: event.resource?.color || '#7c3aed',
-      border: 'none',
-      borderRadius: '6px',
-      fontSize: '12px',
-      padding: '2px 6px',
+  const eventStyleGetter = (event) => {
+    const r = event.resource
+    // Un evento propio que aún no llegó a Google se marca con borde punteado:
+    // así se distingue «todavía no sincronizado» de «ya está en las dos partes».
+    const pending = r?.type === 'event' && googleConnected && !r.synced
+    return {
+      style: {
+        backgroundColor: r?.color || '#7c3aed',
+        border: pending ? '1px dashed rgba(255,255,255,.55)' : 'none',
+        borderRadius: '6px',
+        fontSize: '12px',
+        padding: '2px 6px',
+        opacity: pending ? 0.75 : 1,
+      },
     }
-  })
+  }
 
   const onSelectSlot = useCallback(({ start }) => {
     setSelectedSlot(start)
@@ -184,6 +299,8 @@ export default function CalendarView() {
           <Plus size={15} /> Nuevo evento
         </button>
       </div>
+
+      <GoogleSyncBar onSynced={reload} onStatus={setGoogleConnected} />
 
       <div className="flex-1 min-h-0">
         <Calendar

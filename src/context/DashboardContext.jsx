@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { captureProviderToken } from '../lib/googleCalendar'
 
 const Ctx = createContext(null)
 export const useDashboard = () => useContext(Ctx)
@@ -35,6 +36,14 @@ export function DashboardProvider({ children }) {
       const next = session?.user ?? null
       setUser(prev => (prev?.id === next?.id ? prev : next))
       setAuthReady(true)
+
+      // Google entrega el refresh_token una sola vez, al volver del
+      // consentimiento. Si no se guarda aquí, se pierde y no hay forma de
+      // sincronizar más tarde.
+      if (session?.provider_refresh_token) {
+        captureProviderToken(session).catch(e =>
+          console.warn('No se pudo guardar el acceso a Google Calendar:', e.message))
+      }
     }
     supabase.auth.getSession().then(({ data: { session } }) => apply(session))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => apply(session))
@@ -63,7 +72,7 @@ export function DashboardProvider({ children }) {
         supabase.from('goals').select('*').order('created_at', { ascending: false }),
         supabase.from('habits').select('*').order('created_at', { ascending: false }),
         supabase.from('habit_history').select('*'),
-        supabase.from('calendar_events').select('*').order('start_datetime'),
+        supabase.from('calendar_events').select('*').is('deleted_at', null).order('start_datetime'),
         supabase.from('categories').select('*'),
         supabase.from('ai_sessions').select('*').order('created_at', { ascending: false }).limit(20),
         supabase.from('profiles').select('*').eq('id', user.id).single(),
@@ -258,8 +267,19 @@ export function DashboardProvider({ children }) {
     return d
   }
   const deleteEvent = async (id) => {
-    const { error } = await supabase.from('calendar_events').delete().eq('id', id).eq('user_id', user.id)
-    if (error) throw error
+    const target = calendarEvents.find(e => e.id === id)
+    // Si el evento nunca llegó a Google no hay nada que propagar: se borra y ya.
+    if (!target?.google_event_id) {
+      const { error } = await supabase.from('calendar_events').delete().eq('id', id).eq('user_id', user.id)
+      if (error) throw error
+    } else {
+      // Borrado lógico: la próxima sincronización lo elimina en Google y luego
+      // quita la fila. Borrarlo de golpe perdería la orden de baja.
+      const { error } = await supabase.from('calendar_events')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id).eq('user_id', user.id)
+      if (error) throw error
+    }
     setCalendarEvents(prev => prev.filter(e => e.id !== id))
   }
 
