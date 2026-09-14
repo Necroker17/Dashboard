@@ -2,10 +2,10 @@ import { useMemo } from 'react'
 import { useDashboard } from '../context/DashboardContext'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Legend
+  PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts'
 import { BarChart3, TrendingUp, CheckCircle2, Clock, Target, Flame } from 'lucide-react'
-import { format, subDays, startOfDay } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 const COLORS = ['#7c3aed', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#0891b2']
@@ -57,7 +57,6 @@ export default function Analytics() {
     const done = tasks.filter(t => t.status === 'done')
     const active = tasks.filter(t => t.status !== 'done')
     const today = new Date()
-    const todayStr = format(today, 'yyyy-MM-dd')
 
     // Tasks by status
     const byStatus = Object.entries(
@@ -70,19 +69,24 @@ export default function Analytics() {
     ).map(([name, value]) => ({ name, value, fill: PRIORITY_COLORS[name] || '#6b7280' }))
 
     // Tasks by project (top 6)
-    const byProject = projects.slice(0, 6).map((p, i) => ({
-      name: p.name.slice(0, 12),
-      total: tasks.filter(t => t.project_id === p.id).length,
-      done: tasks.filter(t => t.project_id === p.id && t.status === 'done').length,
-      fill: p.color || COLORS[i % COLORS.length],
-    })).filter(p => p.total > 0)
+    const byProject = projects.slice(0, 6).map((p, i) => {
+      const total = tasks.filter(t => t.project_id === p.id).length
+      const done = tasks.filter(t => t.project_id === p.id && t.status === 'done').length
+      return {
+        name: p.name.slice(0, 12),
+        total,
+        done,
+        pending: total - done,
+        fill: p.color || COLORS[i % COLORS.length],
+      }
+    }).filter(p => p.total > 0)
 
     // Last 14 days activity
     const last14 = Array.from({ length: 14 }, (_, i) => {
       const d = subDays(today, 13 - i)
       const ds = format(d, 'yyyy-MM-dd')
-      const created = tasks.filter(t => t.created_at?.startsWith(ds)).length
-      const completed = tasks.filter(t => t.updated_at?.startsWith(ds) && t.status === 'done').length
+      const created = tasks.filter(t => t.created_at && format(new Date(t.created_at), 'yyyy-MM-dd') === ds).length
+      const completed = tasks.filter(t => t.updated_at && format(new Date(t.updated_at), 'yyyy-MM-dd') === ds && t.status === 'done').length
       return { day: format(d, 'EEE d', { locale: es }), creadas: created, completadas: completed }
     })
 
@@ -187,8 +191,8 @@ export default function Analytics() {
                 <XAxis type="number" tick={{ fill: '#71717a', fontSize: 11 }} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tick={{ fill: '#71717a', fontSize: 11 }} width={80} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="done" name="Completadas" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="total" name="Total" stackId="a" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="done" name="Hechas" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="pending" name="Pendientes" stackId="a" fill="#7c3aed" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}

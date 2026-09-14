@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDashboard } from '../context/DashboardContext'
-import { GanttChart, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
-import { format, addDays, startOfWeek, differenceInDays, parseISO, isWithinInterval, startOfDay } from 'date-fns'
+import { GanttChart, ChevronLeft, ChevronRight } from 'lucide-react'
+import { format, addDays, startOfWeek, differenceInDays, parseISO, startOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 const PRIORITY_COLORS = {
@@ -26,7 +26,7 @@ export default function Timeline() {
     let t = tasks.filter(task => task.due_date || task.start_date)
     if (filterProject !== 'all') t = t.filter(task => task.project_id === filterProject)
     return t
-  }, [tasks, filterProject, projects])
+  }, [tasks, filterProject])
 
   const taskRows = useMemo(() => {
     return filteredTasks.map(task => {
@@ -159,7 +159,7 @@ export default function Timeline() {
                 </div>
 
                 {/* Task rows */}
-                {group.rows.map((row, ri) => (
+                {group.rows.map((row, _ri) => (
                   <div key={row.task.id} className="flex border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors" style={{ height: 36 }}>
                     <div className="w-56 flex-shrink-0 px-4 flex items-center border-r border-zinc-800">
                       <span className="text-xs text-zinc-400 truncate">{row.task.title}</span>
@@ -179,7 +179,7 @@ export default function Timeline() {
                           className="absolute top-1/2 -translate-y-1/2 rounded-md flex items-center px-2 text-xs text-white font-medium overflow-hidden"
                           style={{
                             left: Math.max(0, row.startOffset) * DAY_WIDTH,
-                            width: Math.min(row.duration, days.length - Math.max(0, row.startOffset)) * DAY_WIDTH - 2,
+                            width: Math.max(1, Math.min(row.duration + Math.min(0, row.startOffset), days.length - Math.max(0, row.startOffset))) * DAY_WIDTH - 2,
                             height: 22,
                             backgroundColor: PRIORITY_COLORS[row.task.priority] || '#7c3aed',
                             opacity: row.task.status === 'done' ? 0.5 : 1,

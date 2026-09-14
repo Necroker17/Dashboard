@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
 import { supabase } from '../lib/supabase'
 import {
@@ -7,6 +7,7 @@ import {
   LogOut, Zap, ChevronDown
 } from 'lucide-react'
 import { useState } from 'react'
+import { format } from 'date-fns'
 
 const navItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -43,12 +44,12 @@ function NavItem({ item }) {
   )
 }
 
-export default function Sidebar({ collapsed, onToggle }) {
+export default function Sidebar({ collapsed }) {
   const { profile, projects, tasks } = useDashboard()
   const [projectsOpen, setProjectsOpen] = useState(true)
 
   const activeTasks = tasks.filter(t => t.status !== 'done').length
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
   const todayTasks = tasks.filter(t => t.due_date === todayStr && t.status !== 'done').length
 
   const signOut = () => supabase.auth.signOut()
@@ -126,12 +127,12 @@ export default function Sidebar({ collapsed, onToggle }) {
       {/* User */}
       <div className="flex items-center gap-2 px-3 py-3 border-t border-zinc-800">
         <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">
-          {profile?.name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || '?'}
+          {(profile?.name || profile?.full_name)?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || '?'}
         </div>
         {!collapsed && (
           <>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-zinc-200 truncate">{profile?.name || 'Usuario'}</div>
+              <div className="text-xs font-medium text-zinc-200 truncate">{profile?.name || profile?.full_name || 'Usuario'}</div>
               <div className="text-xs text-zinc-500 truncate">{profile?.plan || 'free'}</div>
             </div>
             <button onClick={signOut} className="text-zinc-500 hover:text-zinc-300 p-1 rounded">

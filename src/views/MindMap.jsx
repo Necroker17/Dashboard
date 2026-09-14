@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useEffect, useMemo } from 'react'
 import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, MarkerType } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useDashboard } from '../context/DashboardContext'
@@ -145,22 +145,77 @@ export default function MindMap() {
     })
 
     // Tasks without project
-    const orphanTasks = tasks.filter(t => !t.project_id).slice(0, 6)
+    const orphanTasks = tasks.filter(t => !t.project_id)
     if (orphanTasks.length > 0) {
+      const ox = 0
+      const oy = radius + 120
+
       nodes.push({
         id: 'no-project',
         type: 'project',
-        position: { x: 0, y: radius + 120 },
+        position: { x: ox, y: oy },
         data: { label: 'Sin proyecto', color: '#6b7280', taskCount: orphanTasks.length },
       })
       edges.push({ id: 'root-no-project', source: 'root', target: 'no-project', style: { stroke: '#6b7280', strokeWidth: 1, opacity: 0.4 } })
+
+      // Task nodes (show up to 5, same as projects)
+      const visibleOrphans = orphanTasks.slice(0, 5)
+      const orphanAngleStep = Math.PI / (Math.max(visibleOrphans.length, 1) + 1)
+      const orphanStartAngle = Math.PI / 2 - (visibleOrphans.length - 1) * orphanAngleStep / 2
+      const orphanRadius = 200
+
+      visibleOrphans.forEach((task, ti) => {
+        const taskAngle = orphanStartAngle + ti * orphanAngleStep
+        const tx = ox + Math.cos(taskAngle) * orphanRadius
+        const ty = oy + Math.sin(taskAngle) * orphanRadius
+
+        nodes.push({
+          id: task.id,
+          type: 'task',
+          position: { x: tx - 80, y: ty - 25 },
+          data: {
+            label: task.title,
+            status: task.status,
+            statusColor: STATUS_COLORS[task.status] || '#6b7280',
+            priorityColor: PRIORITY_COLORS[task.priority] || '#6b7280',
+          },
+        })
+
+        edges.push({
+          id: `no-project-${task.id}`,
+          source: 'no-project',
+          target: task.id,
+          style: { stroke: STATUS_COLORS[task.status] || '#6b7280', strokeWidth: 1, opacity: 0.4 },
+          type: 'smoothstep',
+        })
+      })
+
+      if (orphanTasks.length > 5) {
+        const moreId = 'no-project-more'
+        const moreAngle = orphanStartAngle + visibleOrphans.length * orphanAngleStep
+        nodes.push({
+          id: moreId,
+          position: {
+            x: ox + Math.cos(moreAngle) * orphanRadius - 40,
+            y: oy + Math.sin(moreAngle) * orphanRadius - 15,
+          },
+          data: { label: `+${orphanTasks.length - 5} más` },
+          style: { background: '#27272a', color: '#a1a1aa', border: '1px solid #3f3f46', borderRadius: '8px', fontSize: '11px', padding: '4px 10px' },
+        })
+        edges.push({ id: `no-project-${moreId}`, source: 'no-project', target: moreId, style: { stroke: '#3f3f46', strokeWidth: 1, opacity: 0.4 } })
+      }
     }
 
     return { initialNodes: nodes, initialEdges: edges }
   }, [projects, tasks])
 
-  const [nodes, , onNodesChange] = useNodesState(initialNodes)
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges)
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+
+  useEffect(() => {
+    setNodes(initialNodes)
+    setEdges(initialEdges)
+  }, [initialNodes, initialEdges, setNodes, setEdges])
 
   return (
     <div className="flex flex-col h-full">

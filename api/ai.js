@@ -18,6 +18,15 @@ const PROVIDER_KEYS = {
   anthropic: 'ANTHROPIC_API_KEY',
 }
 
+// Lista blanca: sin esto un usuario autenticado podría pedir cualquier modelo,
+// incluido uno mucho más caro que el que la interfaz ofrece.
+const ALLOWED_MODELS = {
+  groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+  anthropic: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
+  gemini: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'o1-mini'],
+}
+
 const DEFAULT_SYSTEM_PROMPT = `You are an expert project manager and productivity assistant integrated into a personal dashboard.
 When the user describes a project or goal in natural language, you generate a structured, executable plan with specific tasks.
 
@@ -163,8 +172,12 @@ export default async function handler(req, res) {
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Faltan los mensajes.' })
   }
-  if (typeof model !== 'string' || !model) {
-    return res.status(400).json({ error: 'Falta el modelo.' })
+  const totalChars = messages.reduce((n, m) => n + (typeof m?.content === 'string' ? m.content.length : 0), 0)
+  if (messages.length > 50 || totalChars > 100000) {
+    return res.status(413).json({ error: 'La conversación es demasiado larga. Empieza una nueva.' })
+  }
+  if (!ALLOWED_MODELS[provider]?.includes(model)) {
+    return res.status(400).json({ error: `Modelo no permitido para ${provider}: ${model}` })
   }
 
   const apiKey = KEY(PROVIDER_KEYS[provider])

@@ -5,7 +5,7 @@ import { format, isPast, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
   CheckSquare, Plus, Search, Trash2, Pencil,
-  Check, Clock, ChevronDown, CheckCircle2, Circle
+  Check, Clock, CheckCircle2, Circle
 } from 'lucide-react'
 import AIQuickFill from '../components/AIQuickFill'
 
@@ -78,7 +78,13 @@ function TaskForm({ task, projects, onSave, onClose }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const save = () => {
     if (!form.title.trim()) return
-    onSave({ ...form, tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [] })
+    onSave({
+      ...form,
+      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      // Si cambia la prioridad, se libera el cuadrante fijado a mano en la matriz
+      // Eisenhower; de lo contrario las dos vistas se contradicen para siempre.
+      ...(task && task.priority !== form.priority ? { quadrant: null } : {}),
+    })
   }
   return (
     <div className="space-y-4">

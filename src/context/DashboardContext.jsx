@@ -46,6 +46,9 @@ export function DashboardProvider({ children }) {
     if (!authReady) return
     if (!user) { setLoading(false); return }
     loadAll()
+    // user?.id a propósito, no el objeto user: con el objeto completo, cada
+    // refresco de token remontaba toda la aplicación.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady, user?.id])
 
   const loadAll = useCallback(async () => {
@@ -107,7 +110,10 @@ export function DashboardProvider({ children }) {
     const { error } = await supabase.from('projects').delete().eq('id', id).eq('user_id', user.id)
     if (error) throw error
     setProjects(prev => prev.filter(p => p.id !== id))
-    setTasks(prev => prev.filter(t => t.project_id !== id))
+    // La clave foránea es ON DELETE SET NULL: las tareas sobreviven sin proyecto.
+    // Antes se filtraban del estado local y reaparecían al recargar, con un
+    // project_id colgante que no encajaba en ningún grupo de la vista Lista.
+    setTasks(prev => prev.map(t => t.project_id === id ? { ...t, project_id: null } : t))
   }
 
   // TASKS CRUD

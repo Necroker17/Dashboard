@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useDashboard } from '../context/DashboardContext'
 import { supabase } from '../lib/supabase'
-import { Settings as SettingsIcon, User, Bell, Palette, Shield, Save, Loader2, Flame, Plus, Trash2, Check } from 'lucide-react'
+import { Settings as SettingsIcon, User, Shield, Save, Loader2, Flame, Plus, Trash2, Check } from 'lucide-react'
 import Modal from '../components/Modal'
 
 function HabitForm({ habit, onSave, onClose }) {
@@ -58,30 +58,48 @@ function HabitForm({ habit, onSave, onClose }) {
 
 export default function Settings() {
   const { profile, habits, updateProfile, createHabit, deleteHabit, user } = useDashboard()
-  const [form, setForm] = useState({ name: profile?.name || '', tagline: profile?.tagline || '' })
+  // El trigger de registro escribe full_name; el resto de la app usa name.
+  const [form, setForm] = useState({
+    name: profile?.name || profile?.full_name || '',
+    tagline: profile?.tagline || '',
+  })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [habitModal, setHabitModal] = useState(null)
   const [section, setSection] = useState('profile')
 
+  // El perfil llega después del primer render. Sin esto el formulario se queda
+  // con los valores vacíos iniciales y guardar borraba el nombre.
+  useEffect(() => {
+    setForm({
+      name: profile?.name || profile?.full_name || '',
+      tagline: profile?.tagline || '',
+    })
+  }, [profile])
+
   const saveProfile = async () => {
     setSaving(true)
+    setSaveError('')
     try {
       await updateProfile(form)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setSaveError(err.message)
     } finally {
       setSaving(false)
     }
   }
 
-  const changePassword = async () => {
-    await supabase.auth.updateUser({ password: prompt('Nueva contraseña (min 6 chars):') || '' })
-  }
-
   const handleSaveHabit = async (data) => {
-    await createHabit(data)
-    setHabitModal(null)
+    setSaveError('')
+    try {
+      await createHabit(data)
+      setHabitModal(null)
+    } catch (err) {
+      setSaveError(err.message)
+    }
   }
 
   const sections = [
@@ -134,6 +152,9 @@ export default function Settings() {
                   </span>
                 </div>
               </div>
+              {saveError && (
+                <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 mb-3">{saveError}</div>
+              )}
               <button onClick={saveProfile} disabled={saving} className="btn-primary">
                 {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <Check size={15} /> : <Save size={15} />}
                 {saved ? 'Guardado' : 'Guardar cambios'}

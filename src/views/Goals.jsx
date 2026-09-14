@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useDashboard } from '../context/DashboardContext'
 import Modal from '../components/Modal'
-import { Target, Plus, Check, Pencil, Trash2, TrendingUp, Trophy } from 'lucide-react'
+import { Target, Plus, Check, Pencil, Trash2, Trophy } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 const STATUS_COLORS = { active: 'text-violet-400 bg-violet-400/10', completed: 'text-green-400 bg-green-400/10', abandoned: 'text-zinc-500 bg-zinc-800' }
 const STATUS_LABELS = { active: 'Activa', completed: 'Completada', abandoned: 'Abandonada' }
+const STATUS_LABELS_PLURAL = { active: 'activas', completed: 'completadas', abandoned: 'abandonadas' }
 
 function GoalForm({ goal, projects, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -60,8 +61,16 @@ function GoalCard({ goal, project, onEdit, onUpdate, onDelete }) {
   const pct = goal.target_value ? Math.min(100, Math.round((goal.current_value / goal.target_value) * 100)) : 0
   const [updating, setUpdating] = useState(false)
   const [newValue, setNewValue] = useState(goal.current_value)
+  const committed = useRef(false)
+
+  const startUpdating = () => {
+    committed.current = false
+    setUpdating(true)
+  }
 
   const handleUpdate = async () => {
+    if (committed.current) return
+    committed.current = true
     setUpdating(false)
     await onUpdate(goal.id, { current_value: Number(newValue), status: Number(newValue) >= Number(goal.target_value) ? 'completed' : goal.status })
   }
@@ -98,7 +107,7 @@ function GoalCard({ goal, project, onEdit, onUpdate, onDelete }) {
                   <span className="text-sm text-zinc-500">/ {goal.target_value} {goal.unit}</span>
                 </div>
               ) : (
-                <button onClick={() => setUpdating(true)} className="flex items-baseline gap-1 hover:text-violet-300 transition-colors">
+                <button onClick={startUpdating} className="flex items-baseline gap-1 hover:text-violet-300 transition-colors">
                   <span className="text-2xl font-bold text-zinc-100">{goal.current_value}</span>
                   <span className="text-sm text-zinc-500">/ {goal.target_value} {goal.unit}</span>
                 </button>
@@ -182,7 +191,7 @@ export default function Goals() {
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-zinc-500">
           <Trophy size={40} className="mx-auto mb-3 opacity-20" />
-          <p>Sin metas {filter !== 'all' ? STATUS_LABELS[filter]?.toLowerCase() + 's' : ''}</p>
+          <p>Sin metas {filter !== 'all' ? STATUS_LABELS_PLURAL[filter] || '' : ''}</p>
           <button onClick={() => setModal('new')} className="btn-primary mt-3 text-sm"><Plus size={14} /> Crear meta</button>
         </div>
       ) : (

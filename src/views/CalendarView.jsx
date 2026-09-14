@@ -42,11 +42,24 @@ function EventForm({ event, defaultStart, onSave, onClose }) {
     project_id: event?.project_id || '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const [formError, setFormError] = useState('')
+
   const save = () => {
-    if (!form.title.trim()) return
+    if (!form.title.trim()) {
+      setFormError('El título es obligatorio.')
+      return
+    }
+    // start_datetime es NOT NULL en la base: sin esto el error que vería el
+    // usuario sería «null value in column start_datetime violates not-null».
+    const start = toISO(form.start_datetime)
+    if (!start) {
+      setFormError(form.all_day ? 'Elige una fecha.' : 'Elige una fecha y hora de inicio.')
+      return
+    }
+    setFormError('')
     onSave({
       ...form,
-      start_datetime: toISO(form.start_datetime),
+      start_datetime: start,
       end_datetime: toISO(form.end_datetime),
     })
   }
@@ -85,6 +98,9 @@ function EventForm({ event, defaultStart, onSave, onClose }) {
           ))}
         </div>
       </div>
+      {formError && (
+        <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{formError}</div>
+      )}
       <div className="flex gap-2 pt-2">
         <button onClick={save} className="btn-primary flex-1 justify-center"><Check size={15} />{event ? 'Actualizar' : 'Crear'}</button>
         <button onClick={onClose} className="btn-ghost">Cancelar</button>

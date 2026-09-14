@@ -1,7 +1,7 @@
 import { useDashboard } from '../context/DashboardContext'
-import { format, isToday, isTomorrow, isPast, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
+import { format, isToday, isPast, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckSquare, Target, Kanban, Flame, TrendingUp, Clock, AlertCircle, Plus } from 'lucide-react'
+import { CheckSquare, Target, Kanban, Flame, TrendingUp, Clock, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -47,8 +47,9 @@ function TaskItem({ task, onDone }) {
 }
 
 export default function Dashboard() {
-  const { profile, projects, tasks, goals, habits, habitHistory, updateTask } = useDashboard()
+  const { profile, projects, tasks, goals, habits, habitHistory, updateTask, toggleHabit } = useDashboard()
   const navigate = useNavigate()
+  const [actionError, setActionError] = useState('')
   const today = new Date()
   const todayStr = format(today, 'yyyy-MM-dd')
 
@@ -70,7 +71,7 @@ export default function Dashboard() {
     habitHistory.find(hh => hh.habit_id === h.id && hh.date_str === todayStr && hh.completed)
   )
 
-  const markDone = (id) => updateTask(id, { status: 'done' })
+  const markDone = (id) => updateTask(id, { status: 'done' }).catch(err => setActionError(err.message))
 
   const upcomingTasks = activeTasks
     .filter(t => t.due_date)
@@ -82,7 +83,7 @@ export default function Dashboard() {
       {/* Greeting */}
       <div>
         <h1 className="text-2xl font-bold text-zinc-100">
-          Buenos días{profile?.name ? `, ${profile.name.split(' ')[0]}` : ''} 👋
+          Buenos días{(profile?.name || profile?.full_name) ? `, ${(profile.name || profile.full_name).split(' ')[0]}` : ''} 👋
         </h1>
         <p className="text-zinc-400 text-sm mt-1">
           {format(today, "EEEE, d 'de' MMMM", { locale: es })}
@@ -91,6 +92,12 @@ export default function Dashboard() {
           )}
         </p>
       </div>
+
+      {actionError && (
+
+        <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 mb-4">{actionError}</div>
+
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -142,11 +149,22 @@ export default function Dashboard() {
                 {todayHabits.map(h => {
                   const done = habitHistory.find(hh => hh.habit_id === h.id && hh.date_str === todayStr && hh.completed)
                   return (
-                    <div key={h.id} className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full flex-shrink-0`} style={{ backgroundColor: h.color || '#6366f1' }} />
+                    <button
+                      key={h.id}
+                      onClick={() => toggleHabit(h.id, todayStr).catch(err => setActionError(err.message))}
+                      className="flex items-center gap-2 w-full text-left px-2 py-1 -mx-2 rounded-lg hover:bg-zinc-800/50 transition-colors"
+                      title={done ? 'Marcar como no hecho' : 'Marcar como hecho'}
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0 transition-all"
+                        style={{
+                          backgroundColor: done ? (h.color || '#6366f1') : 'transparent',
+                          border: `2px solid ${h.color || '#6366f1'}`,
+                        }}
+                      />
                       <span className={`text-sm flex-1 ${done ? 'text-zinc-500 line-through' : 'text-zinc-300'}`}>{h.name}</span>
                       {done && <span className="text-xs text-green-400">✓</span>}
-                    </div>
+                    </button>
                   )
                 })}
               </div>

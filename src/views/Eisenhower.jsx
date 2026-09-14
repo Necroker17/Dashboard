@@ -13,7 +13,7 @@ const QUADRANTS = {
 
 const PRIORITY_TO_QUADRANT = { urgent: 'q1', high: 'q2', medium: 'q3', low: 'q4' }
 
-function QuadrantCard({ id, tasks, onMove, onQuickAdd, projects }) {
+function QuadrantCard({ id, tasks, _onMove, onQuickAdd, projects }) {
   const q = QUADRANTS[id]
   return (
     <div className={`flex flex-col rounded-xl border ${q.bg} overflow-hidden`}>
@@ -101,14 +101,14 @@ export default function Eisenhower() {
   const onDragEnd = async ({ source, destination, draggableId }) => {
     if (!destination || source.droppableId === destination.droppableId) return
     const newQuadrant = destination.droppableId
-    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'medium', q4: 'low' }
+    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'urgent', q4: 'low' }
     await updateTask(draggableId, { quadrant: newQuadrant, priority: priorityMap[newQuadrant] })
   }
 
   const handleQuickAdd = async (e) => {
     e.preventDefault()
     if (!newTitle.trim()) return
-    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'medium', q4: 'low' }
+    const priorityMap = { q1: 'urgent', q2: 'high', q3: 'urgent', q4: 'low' }
     await createTask({ title: newTitle, status: 'todo', priority: priorityMap[quickAdd], quadrant: quickAdd })
     setNewTitle('')
     setQuickAdd(null)

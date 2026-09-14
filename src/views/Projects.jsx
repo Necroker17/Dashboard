@@ -5,7 +5,7 @@ import Modal from '../components/Modal'
 import { useSearchParams } from 'react-router-dom'
 import {
   Plus, MoreHorizontal, Pencil, Trash2, Clock,
-  ChevronDown, X, Check, Kanban
+  X, Check, Kanban
 } from 'lucide-react'
 import AIQuickFill from '../components/AIQuickFill'
 
@@ -154,6 +154,57 @@ function TaskForm({ task, projects, projectId, onSave, onClose }) {
   )
 }
 
+function ProjectTab({ project, active, count, onSelect, onEdit, onDelete }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = () => setMenuOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [menuOpen])
+
+  return (
+    <div className="relative flex-shrink-0">
+      <div
+        className={`flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+          active ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30' : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+        }`}
+      >
+        <button onClick={onSelect} className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color || '#7c3aed' }} />
+          {project.name}
+          <span className="text-xs opacity-60">({count})</span>
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o) }}
+          className="opacity-50 hover:opacity-100 p-0.5 rounded transition-opacity"
+          title="Opciones del proyecto"
+        >
+          <MoreHorizontal size={13} />
+        </button>
+      </div>
+
+      {menuOpen && (
+        <div className="absolute right-0 top-9 z-20 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl py-1 w-36">
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); setMenuOpen(false) }}
+            className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
+          >
+            <Pencil size={13} /> Editar
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); setMenuOpen(false) }}
+            className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 flex items-center gap-2"
+          >
+            <Trash2 size={13} /> Eliminar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProjectForm({ project, onSave, onClose }) {
   const COLORS = ['#7c3aed', '#a855f7', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2']
   const [form, setForm] = useState({
@@ -232,6 +283,9 @@ export default function Projects() {
   const [taskModal, setTaskModal] = useState(null) // null | 'new' | task object
   const [projectModal, setProjectModal] = useState(null)
   const [newTaskCol, setNewTaskCol] = useState('todo')
+  const [localOrder, setLocalOrder] = useState(null)
+  const [boardError, setBoardError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   useEffect(() => {
     if (focusId) setSelectedProject(focusId)
@@ -241,15 +295,61 @@ export default function Projects() {
     ? tasks
     : tasks.filter(t => t.project_id === selectedProject)
 
-  const getColTasks = (colId) => filteredTasks.filter(t => t.status === colId)
-    .sort((a, b) => (a.position || 0) - (b.position || 0))
+  // created_at desempata: sin él, dos posiciones iguales salían en orden
+  // distinto en cada sesión.
+  const sortByPosition = (list) => [...list].sort(
+    (a, b) => (a.position ?? 0) - (b.position ?? 0) || String(a.created_at).localeCompare(String(b.created_at))
+  )
 
+  const withPendingOrder = (list) => {
+    if (!localOrder) return list
+    const pending = new Map(localOrder.map(r => [r.id, r]))
+    return list.map(t => (pending.has(t.id) ? { ...t, ...pending.get(t.id) } : t))
+  }
+
+  // Lo que se ve en la columna (respeta la pestaña de proyecto seleccionada)
+  const getColTasks = (colId) =>
+    sortByPosition(withPendingOrder(filteredTasks).filter(t => t.status === colId))
+
+  // La columna entera, ignorando el filtro: es sobre esta que hay que renumerar,
+  // o con una pestaña activa las posiciones se escriben relativas al subconjunto
+  // y se pisan con las de los demás proyectos.
+  const getFullColTasks = (colId) =>
+    sortByPosition(withPendingOrder(tasks).filter(t => t.status === colId))
+
+  // Antes solo se escribía la posición de la tarjeta movida: sus vecinas
+  // conservaban la suya, las posiciones se duplicaban y el orden se resolvía por
+  // empate, así que la tarjeta "rebotaba" a un sitio distinto del que soltaste.
+  // Ahora se renumera la columna de destino completa.
   const onDragEnd = async ({ source, destination, draggableId }) => {
     if (!destination) return
     if (source.droppableId === destination.droppableId && source.index === destination.index) return
 
     const newStatus = destination.droppableId
-    await updateTask(draggableId, { status: newStatus, position: destination.index })
+    const moved = tasks.find(t => t.id === draggableId)
+    if (!moved) return
+
+    // El índice que da la librería es relativo a lo que el usuario ve. Se traduce
+    // a la columna completa anclándolo a la tarjeta visible que queda justo encima.
+    const visible = getColTasks(newStatus).filter(t => t.id !== draggableId)
+    const anchor = destination.index > 0 ? visible[destination.index - 1] : null
+
+    const column = getFullColTasks(newStatus).filter(t => t.id !== draggableId)
+    const at = anchor ? column.findIndex(t => t.id === anchor.id) + 1 : 0
+    column.splice(at, 0, { ...moved, status: newStatus })
+
+    const reordered = column.map((t, i) => ({ id: t.id, status: newStatus, position: i }))
+
+    // Optimista: sin esto la tarjeta salta a su sitio viejo hasta que responde la red.
+    setLocalOrder(reordered)
+
+    try {
+      await Promise.all(reordered.map(r => updateTask(r.id, { status: r.status, position: r.position })))
+    } catch (err) {
+      setBoardError(err.message)
+    } finally {
+      setLocalOrder(null)
+    }
   }
 
   const handleNewTask = (colId) => {
@@ -301,6 +401,13 @@ export default function Projects() {
         </button>
       </div>
 
+      {boardError && (
+        <div className="mx-6 mt-3 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span>{boardError}</span>
+          <button onClick={() => setBoardError('')} className="text-red-400 hover:text-red-300"><X size={14} /></button>
+        </div>
+      )}
+
       {/* Project tabs */}
       <div className="flex gap-1.5 px-6 py-3 border-b border-zinc-800 overflow-x-auto flex-shrink-0">
         <button
@@ -312,17 +419,15 @@ export default function Projects() {
           Todos
         </button>
         {projects.map(p => (
-          <button
+          <ProjectTab
             key={p.id}
-            onClick={() => setSelectedProject(p.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
-              selectedProject === p.id ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30' : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color || '#7c3aed' }} />
-            {p.name}
-            <span className="text-xs opacity-60">({tasks.filter(t => t.project_id === p.id && t.status !== 'done').length})</span>
-          </button>
+            project={p}
+            active={selectedProject === p.id}
+            count={tasks.filter(t => t.project_id === p.id && t.status !== 'done').length}
+            onSelect={() => setSelectedProject(p.id)}
+            onEdit={() => setProjectModal(p)}
+            onDelete={() => setConfirmDelete(p)}
+          />
         ))}
       </div>
 
@@ -388,6 +493,39 @@ export default function Projects() {
             onSave={handleSaveTask}
             onClose={() => setTaskModal(null)}
           />
+        </Modal>
+      )}
+
+      {/* Confirmación de borrado */}
+      {confirmDelete && (
+        <Modal title="Eliminar proyecto" onClose={() => setConfirmDelete(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-300">
+              ¿Seguro que quieres eliminar <strong className="text-zinc-100">{confirmDelete.name}</strong>?
+            </p>
+            <p className="text-sm text-zinc-500">
+              Sus {tasks.filter(t => t.project_id === confirmDelete.id).length} tareas no se borran: quedan
+              como «Sin proyecto» y las puedes reasignar después.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={async () => {
+                  try {
+                    await deleteProject(confirmDelete.id)
+                    if (selectedProject === confirmDelete.id) setSelectedProject('all')
+                    setConfirmDelete(null)
+                  } catch (err) {
+                    setBoardError(err.message)
+                    setConfirmDelete(null)
+                  }
+                }}
+                className="btn-danger flex-1 justify-center"
+              >
+                <Trash2 size={15} /> Eliminar proyecto
+              </button>
+              <button onClick={() => setConfirmDelete(null)} className="btn-ghost">Cancelar</button>
+            </div>
+          </div>
         </Modal>
       )}
 

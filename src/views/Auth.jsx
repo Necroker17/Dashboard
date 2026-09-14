@@ -52,10 +52,12 @@ export default function Auth() {
           options: { data: { name } }
         })
         if (error) throw error
-        // Create profile
+        // El trigger handle_new_user ya crea la fila; esto solo añade el nombre.
+        // 'plan' se omite a propósito: es el derecho de acceso y el cliente ya no
+        // tiene permiso de escritura sobre esa columna (la rellena su DEFAULT).
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-          await supabase.from('profiles').upsert({ id: user.id, email, name, plan: 'free' })
+          await supabase.from('profiles').upsert({ id: user.id, email, name })
         }
         setSuccess('Cuenta creada. Revisa tu email para confirmar.')
         return
