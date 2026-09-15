@@ -42,10 +42,26 @@ const NOT_CHAT = /whisper|tts|audio|embed|guard|moderation|image|vision-only|dal
 //
 // Es orientativo, no una garantía: la protección real es no vincular una cuenta
 // de facturación, porque entonces un modelo de pago falla en vez de cobrar.
+// Umbral del plan gratuito de Gemini. Google pasó los Flash a cobro a partir de
+// la 3.6 (3.6 y 3.8 tienen precio publicado); los anteriores y toda la familia
+// Flash-Lite siguen en el plan gratuito.
+//
+// Es un umbral y no una lista de nombres a propósito: así reconoce versiones que
+// todavía no existen sin tener que tocarlo. Pero SÍ hay que revisarlo cuando
+// Google mueva la línea otra vez — si un día los 3.8 pasan a gratuitos, sube el
+// número. Si la lista se queda vacía, la interfaz avisa y deja ver el resto, así
+// que envejecer mal no deja al usuario sin opciones.
+const GEMINI_FREE_BELOW = 3.6
+
 function isFreeTier(provider, id) {
-  if (provider === 'groq') return true
-  if (provider === 'gemini') return /flash/i.test(id) && !/\bpro\b/i.test(id)
-  return false
+  if (provider === 'groq') return true      // catálogo completo sin tarjeta
+  if (provider !== 'gemini') return false   // OpenAI y Anthropic no tienen plan gratuito
+
+  if (!/flash/i.test(id) || /\bpro\b/i.test(id)) return false
+  if (/flash-?lite/i.test(id)) return true  // Flash-Lite es gratuito en todas las versiones
+
+  const version = parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/i) || [])[1])
+  return Number.isFinite(version) && version < GEMINI_FREE_BELOW
 }
 
 async function listModels(provider, apiKey) {
