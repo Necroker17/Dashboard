@@ -25,7 +25,17 @@ const PROVIDER_KEYS = {
 // Sin lista blanca, lo que valida el modelo es su forma: eso basta para impedir
 // inyección en la URL de Gemini, y el alcance real lo pone la clave del dueño —
 // solo puede pedir modelos a los que su propia cuenta tiene acceso.
-const MODEL_RE = /^[A-Za-z0-9._:-]{1,120}$/
+// Los identificadores de Groq llevan espacio de nombres con barra
+// (openai/gpt-oss-120b, groq/compound), así que la barra tiene que estar
+// permitida. Pero en Gemini el modelo se interpola en la RUTA de la URL, donde
+// una barra permitiría salirse del endpoint: ahí se prohíbe aparte, y además se
+// codifica al construir la URL.
+const MODEL_RE = /^[A-Za-z0-9._:/-]{1,120}$/
+const modelIsValid = (provider, id) =>
+  typeof id === 'string' &&
+  MODEL_RE.test(id) &&
+  !id.includes('..') &&
+  (provider !== 'gemini' || !id.includes('/'))
 
 // Lo que no sirve para conversar: audio, voz, imagen, embeddings, moderación.
 // Las familias con nombre propio (orpheus y playai son texto-a-voz) hay que
@@ -214,7 +224,7 @@ async function callAnthropic(messages, model, apiKey, sys) {
 }
 
 async function callGemini(messages, model, apiKey, sys) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -301,7 +311,7 @@ export default async function handler(req, res) {
   if (messages.length > 50 || totalChars > 100000) {
     return res.status(413).json({ error: 'La conversación es demasiado larga. Empieza una nueva.' })
   }
-  if (typeof model !== 'string' || !MODEL_RE.test(model)) {
+  if (!modelIsValid(provider, model)) {
     return res.status(400).json({ error: `Identificador de modelo inválido: ${model}` })
   }
 
