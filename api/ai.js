@@ -30,6 +30,24 @@ const MODEL_RE = /^[A-Za-z0-9._:-]{1,120}$/
 // Lo que no sirve para conversar: audio, imagen, embeddings, moderación.
 const NOT_CHAT = /whisper|tts|audio|embed|guard|moderation|image|vision-only|dall-e|imagen|veo|rerank/i
 
+// Qué entra en el plan gratuito. Es una REGLA, no una lista: los nombres de
+// modelo cambian cada pocos meses y una lista fija es justo lo que dejó el
+// asistente inservible.
+//
+//   Groq   · el plan gratuito da acceso a todo el catálogo sin tarjeta; lo que
+//            limita son las peticiones por minuto, no qué modelo puedes usar.
+//   Gemini · gratis es la familia Flash y Flash-Lite. Los Pro están detrás de
+//            facturación.
+//   OpenAI y Anthropic no tienen plan gratuito de API.
+//
+// Es orientativo, no una garantía: la protección real es no vincular una cuenta
+// de facturación, porque entonces un modelo de pago falla en vez de cobrar.
+function isFreeTier(provider, id) {
+  if (provider === 'groq') return true
+  if (provider === 'gemini') return /flash/i.test(id) && !/\bpro\b/i.test(id)
+  return false
+}
+
 async function listModels(provider, apiKey) {
   if (provider === 'gemini') {
     const res = await fetch(
@@ -39,7 +57,10 @@ async function listModels(provider, apiKey) {
     if (!res.ok) throw new Error(data.error?.message || `Gemini ${res.status}`)
     return (data.models || [])
       .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-      .map(m => ({ id: String(m.name).replace(/^models\//, ''), label: m.displayName || null }))
+      .map(m => {
+        const id = String(m.name).replace(/^models\//, '')
+        return { id, label: m.displayName || null, free: isFreeTier('gemini', id) }
+      })
       .filter(m => !NOT_CHAT.test(m.id))
   }
 
@@ -49,7 +70,7 @@ async function listModels(provider, apiKey) {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error?.message || `Anthropic ${res.status}`)
-    return (data.data || []).map(m => ({ id: m.id, label: m.display_name || null }))
+    return (data.data || []).map(m => ({ id: m.id, label: m.display_name || null, free: false }))
   }
 
   // Groq y OpenAI comparten el formato de OpenAI.
@@ -58,7 +79,7 @@ async function listModels(provider, apiKey) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error?.message || `${provider} ${res.status}`)
   return (data.data || [])
-    .map(m => ({ id: m.id, label: null }))
+    .map(m => ({ id: m.id, label: null, free: isFreeTier(provider, m.id) }))
     .filter(m => !NOT_CHAT.test(m.id))
     .sort((a, b) => a.id.localeCompare(b.id))
 }

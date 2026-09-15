@@ -36,6 +36,12 @@ function PlanPreview({ plan, onImport, importing }) {
 
 function ProviderSelector({ provider, model, configured, models, loadingModels, modelsError, onChangeProvider, onChangeModel }) {
   const [open, setOpen] = useState(false)
+  // Por defecto solo se ofrecen los del plan gratuito: así no se elige por error
+  // uno de pago. Se puede desactivar para ver el catálogo entero.
+  const [onlyFree, setOnlyFree] = useState(true)
+
+  const hasPaid = models.some(m => !m.free)
+  const shown = onlyFree ? models.filter(m => m.free) : models
   const p = PROVIDERS[provider]
   const current = models.find(m => m.id === model)
 
@@ -74,6 +80,17 @@ function ProviderSelector({ provider, model, configured, models, loadingModels, 
 
               {/* Los modelos solo se consultan al proveedor seleccionado: pedirlos
                   para los cuatro gastaría cuota de todos en cada apertura. */}
+              {pid === provider && hasPaid && !loadingModels && (
+                <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-500 cursor-pointer hover:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={onlyFree}
+                    onChange={e => setOnlyFree(e.target.checked)}
+                    className="rounded"
+                  />
+                  Solo modelos del plan gratuito
+                </label>
+              )}
               {pid === provider ? (
                 loadingModels ? (
                   <div className="px-4 py-3 text-xs text-zinc-500 flex items-center gap-2">
@@ -81,10 +98,14 @@ function ProviderSelector({ provider, model, configured, models, loadingModels, 
                   </div>
                 ) : modelsError ? (
                   <div className="px-4 py-3 text-xs text-red-400">{modelsError}</div>
-                ) : models.length === 0 ? (
-                  <div className="px-4 py-3 text-xs text-zinc-500">Sin modelos disponibles para esta clave.</div>
+                ) : shown.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-zinc-500">
+                    {onlyFree && models.length > 0
+                      ? 'Ningún modelo gratuito en este proveedor. Desmarca «solo gratis» para ver los de pago.'
+                      : 'Sin modelos disponibles para esta clave.'}
+                  </div>
                 ) : (
-                  models.map(m => (
+                  shown.map(m => (
                     <button
                       key={m.id}
                       onClick={() => { onChangeModel(m.id); setOpen(false) }}
@@ -93,7 +114,10 @@ function ProviderSelector({ provider, model, configured, models, loadingModels, 
                       }`}
                     >
                       <span className="truncate">{m.label || m.id}</span>
-                      {model === m.id && <span className="text-violet-400 flex-shrink-0">✓</span>}
+                      <span className="flex items-center gap-1.5 flex-shrink-0">
+                        {!m.free && <span className="text-amber-400/80 text-xs">de pago</span>}
+                        {model === m.id && <span className="text-violet-400">✓</span>}
+                      </span>
                     </button>
                   ))
                 )
