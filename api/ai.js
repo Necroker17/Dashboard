@@ -27,8 +27,29 @@ const PROVIDER_KEYS = {
 // solo puede pedir modelos a los que su propia cuenta tiene acceso.
 const MODEL_RE = /^[A-Za-z0-9._:-]{1,120}$/
 
-// Lo que no sirve para conversar: audio, imagen, embeddings, moderación.
-const NOT_CHAT = /whisper|tts|audio|embed|guard|moderation|image|vision-only|dall-e|imagen|veo|rerank/i
+// Lo que no sirve para conversar: audio, voz, imagen, embeddings, moderación.
+// Las familias con nombre propio (orpheus y playai son texto-a-voz) hay que
+// nombrarlas: no se distinguen por el identificador. Si alguna envejece, lo peor
+// que pasa es que aparezca un modelo inútil en la lista, no que algo se rompa.
+const NOT_CHAT = /whisper|tts|text-to-speech|orpheus|playai|dia-tts|speech|voice|audio|embed|guard|moderation|image|vision-only|dall-e|imagen|veo|rerank/i
+
+// Orden de preferencia para el valor por defecto. Sin esto la lista salía
+// alfabética y el primero acababa siendo allam-2-7b, un modelo especializado en
+// árabe: mal valor por defecto para un panel en español.
+const PREFERRED = [
+  /gpt-oss-120b/i,        // generalista más capaz del catálogo abierto
+  /^groq\/compound$/i,    // sistema agéntico con búsqueda y ejecución de código
+  /llama.*70b/i,
+  /qwen/i,
+  /gpt-oss/i,
+  /compound/i,
+  /llama/i,
+]
+
+const preferenceRank = (id) => {
+  const i = PREFERRED.findIndex(re => re.test(id))
+  return i === -1 ? PREFERRED.length : i
+}
 
 // Qué entra en el plan gratuito. Es una REGLA, no una lista: los nombres de
 // modelo cambian cada pocos meses y una lista fija es justo lo que dejó el
@@ -97,7 +118,7 @@ async function listModels(provider, apiKey) {
   return (data.data || [])
     .map(m => ({ id: m.id, label: null, free: isFreeTier(provider, m.id) }))
     .filter(m => !NOT_CHAT.test(m.id))
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => preferenceRank(a.id) - preferenceRank(b.id) || a.id.localeCompare(b.id))
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are an expert project manager and productivity assistant integrated into a personal dashboard.
