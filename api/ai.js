@@ -74,6 +74,11 @@ const preferenceRank = (id) => {
 // que envejecer mal no deja al usuario sin opciones.
 const GEMINI_FREE_BELOW = 3.6
 
+const geminiVersion = (id) => {
+  const v = parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/i) || [])[1])
+  return Number.isFinite(v) ? v : 0
+}
+
 function isFreeTier(provider, id) {
   if (provider === 'groq') return true      // catálogo completo sin tarjeta
   if (provider !== 'gemini') return false   // OpenAI y Anthropic no tienen plan gratuito
@@ -81,8 +86,8 @@ function isFreeTier(provider, id) {
   if (!/flash/i.test(id) || /\bpro\b/i.test(id)) return false
   if (/flash-?lite/i.test(id)) return true  // Flash-Lite es gratuito en todas las versiones
 
-  const version = parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/i) || [])[1])
-  return Number.isFinite(version) && version < GEMINI_FREE_BELOW
+  const version = geminiVersion(id)
+  return version > 0 && version < GEMINI_FREE_BELOW
 }
 
 async function listModels(provider, apiKey) {
@@ -99,6 +104,15 @@ async function listModels(provider, apiKey) {
         return { id, label: m.displayName || null, free: isFreeTier('gemini', id) }
       })
       .filter(m => !NOT_CHAT.test(m.id))
+      // Los gratuitos primero y, dentro de ellos, el más nuevo arriba. Google
+      // devuelve el catálogo en orden arbitrario e incluye versiones antiguas
+      // que ya retiró para cuentas nuevas: sin ordenar, el valor por defecto
+      // acababa siendo un modelo que responde «no longer available».
+      .sort((a, b) =>
+        (b.free - a.free) ||
+        (geminiVersion(b.id) - geminiVersion(a.id)) ||
+        a.id.localeCompare(b.id)
+      )
   }
 
   if (provider === 'anthropic') {
