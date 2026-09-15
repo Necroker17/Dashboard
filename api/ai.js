@@ -18,13 +18,49 @@ const PROVIDER_KEYS = {
   anthropic: 'ANTHROPIC_API_KEY',
 }
 
-// Lista blanca: sin esto un usuario autenticado podría pedir cualquier modelo,
-// incluido uno mucho más caro que el que la interfaz ofrece.
-const ALLOWED_MODELS = {
-  groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
-  anthropic: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
-  gemini: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
-  openai: ['gpt-4o', 'gpt-4o-mini', 'o1-mini'],
+// Una lista fija de modelos envejece: los proveedores retiran identificadores
+// cada pocos meses y la app se rompe sin avisar. El catálogo se consulta al
+// propio proveedor, que es la única fuente que nunca queda obsoleta.
+//
+// Sin lista blanca, lo que valida el modelo es su forma: eso basta para impedir
+// inyección en la URL de Gemini, y el alcance real lo pone la clave del dueño —
+// solo puede pedir modelos a los que su propia cuenta tiene acceso.
+const MODEL_RE = /^[A-Za-z0-9._:-]{1,120}$/
+
+// Lo que no sirve para conversar: audio, imagen, embeddings, moderación.
+const NOT_CHAT = /whisper|tts|audio|embed|guard|moderation|image|vision-only|dall-e|imagen|veo|rerank/i
+
+async function listModels(provider, apiKey) {
+  if (provider === 'gemini') {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`
+    )
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error?.message || `Gemini ${res.status}`)
+    return (data.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => ({ id: String(m.name).replace(/^models\//, ''), label: m.displayName || null }))
+      .filter(m => !NOT_CHAT.test(m.id))
+  }
+
+  if (provider === 'anthropic') {
+    const res = await fetch('https://api.anthropic.com/v1/models?limit=100', {
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error?.message || `Anthropic ${res.status}`)
+    return (data.data || []).map(m => ({ id: m.id, label: m.display_name || null }))
+  }
+
+  // Groq y OpenAI comparten el formato de OpenAI.
+  const base = provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1'
+  const res = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${apiKey}` } })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error?.message || `${provider} ${res.status}`)
+  return (data.data || [])
+    .map(m => ({ id: m.id, label: null }))
+    .filter(m => !NOT_CHAT.test(m.id))
+    .sort((a, b) => a.id.localeCompare(b.id))
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are an expert project manager and productivity assistant integrated into a personal dashboard.
@@ -164,11 +200,28 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Inicia sesión para usar el asistente.' })
   }
 
-  const { provider, model, messages, systemPrompt } = req.body || {}
+  const { provider, model, messages, systemPrompt, action } = req.body || {}
 
   if (!CALLERS[provider]) {
     return res.status(400).json({ error: `Proveedor desconocido: ${provider}` })
   }
+
+  const providerKey = KEY(PROVIDER_KEYS[provider])
+  if (!providerKey) {
+    return res.status(400).json({
+      error: `Falta configurar ${PROVIDER_KEYS[provider]} en las variables de entorno de Vercel.`,
+    })
+  }
+
+  // Catálogo de modelos disponibles para esta clave, ahora mismo.
+  if (action === 'models') {
+    try {
+      return res.status(200).json({ models: await listModels(provider, providerKey) })
+    } catch (err) {
+      return res.status(502).json({ error: err.message })
+    }
+  }
+
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Faltan los mensajes.' })
   }
@@ -176,15 +229,8 @@ export default async function handler(req, res) {
   if (messages.length > 50 || totalChars > 100000) {
     return res.status(413).json({ error: 'La conversación es demasiado larga. Empieza una nueva.' })
   }
-  if (!ALLOWED_MODELS[provider]?.includes(model)) {
-    return res.status(400).json({ error: `Modelo no permitido para ${provider}: ${model}` })
-  }
-
-  const apiKey = KEY(PROVIDER_KEYS[provider])
-  if (!apiKey) {
-    return res.status(400).json({
-      error: `Falta configurar ${PROVIDER_KEYS[provider]} en las variables de entorno de Vercel.`,
-    })
+  if (typeof model !== 'string' || !MODEL_RE.test(model)) {
+    return res.status(400).json({ error: `Identificador de modelo inválido: ${model}` })
   }
 
   // Normaliza para no reenviar campos extra del cliente al proveedor.
@@ -196,7 +242,7 @@ export default async function handler(req, res) {
     const text = await CALLERS[provider](
       clean,
       model,
-      apiKey,
+      providerKey,
       typeof systemPrompt === 'string' && systemPrompt ? systemPrompt : DEFAULT_SYSTEM_PROMPT
     )
     return res.status(200).json({ text })

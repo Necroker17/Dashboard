@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useDashboard } from '../context/DashboardContext'
-import { sendMessage, tryParsePlan, planToTasks, fetchConfiguredProviders, PROVIDERS } from '../lib/ai'
+import { sendMessage, tryParsePlan, planToTasks, fetchConfiguredProviders, fetchModels, PROVIDERS } from '../lib/ai'
 import { Bot, Send, X, Sparkles, Loader2, Plus, ChevronDown, ExternalLink } from 'lucide-react'
 
 // Las API keys viven en el servidor (api/ai.js). El navegador solo pregunta
@@ -34,9 +34,10 @@ function PlanPreview({ plan, onImport, importing }) {
   )
 }
 
-function ProviderSelector({ provider, model, configured, onChangeProvider, onChangeModel }) {
+function ProviderSelector({ provider, model, configured, models, loadingModels, modelsError, onChangeProvider, onChangeModel }) {
   const [open, setOpen] = useState(false)
   const p = PROVIDERS[provider]
+  const current = models.find(m => m.id === model)
 
   return (
     <div className="relative">
@@ -46,7 +47,9 @@ function ProviderSelector({ provider, model, configured, onChangeProvider, onCha
       >
         <span className="font-medium text-zinc-200">{p.name}</span>
         <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ backgroundColor: p.color + '30', color: p.color }}>{p.badge}</span>
-        <span className="text-zinc-500 flex-1 text-left truncate">{p.models.find(m => m.id === model)?.label || model}</span>
+        <span className="text-zinc-500 flex-1 text-left truncate">
+          {loadingModels ? 'cargando modelos...' : (current?.label || model || 'elige un modelo')}
+        </span>
         {!configured[provider] && <span className="text-amber-400 text-xs">sin key</span>}
         <ChevronDown size={12} className={`text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -55,7 +58,7 @@ function ProviderSelector({ provider, model, configured, onChangeProvider, onCha
         <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-y-auto max-h-[70vh]">
           {Object.entries(PROVIDERS).map(([pid, prov]) => (
             <div key={pid}>
-              <div className="flex items-center justify-between px-3 py-2 bg-zinc-900/60">
+              <div className="flex items-center justify-between px-3 py-2 bg-zinc-900/60 sticky top-0">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-zinc-300">{prov.name}</span>
                   <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ backgroundColor: prov.color + '30', color: prov.color }}>{prov.badge}</span>
@@ -68,23 +71,43 @@ function ProviderSelector({ provider, model, configured, onChangeProvider, onCha
                   <span className="text-xs text-green-400">✓ configurado</span>
                 )}
               </div>
-              {prov.models.map(m => (
+
+              {/* Los modelos solo se consultan al proveedor seleccionado: pedirlos
+                  para los cuatro gastaría cuota de todos en cada apertura. */}
+              {pid === provider ? (
+                loadingModels ? (
+                  <div className="px-4 py-3 text-xs text-zinc-500 flex items-center gap-2">
+                    <Loader2 size={11} className="animate-spin" /> Consultando modelos disponibles...
+                  </div>
+                ) : modelsError ? (
+                  <div className="px-4 py-3 text-xs text-red-400">{modelsError}</div>
+                ) : models.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-zinc-500">Sin modelos disponibles para esta clave.</div>
+                ) : (
+                  models.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => { onChangeModel(m.id); setOpen(false) }}
+                      className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between gap-2 ${
+                        model === m.id ? 'bg-violet-600/20 text-violet-300' : 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                      }`}
+                    >
+                      <span className="truncate">{m.label || m.id}</span>
+                      {model === m.id && <span className="text-violet-400 flex-shrink-0">✓</span>}
+                    </button>
+                  ))
+                )
+              ) : (
                 <button
-                  key={m.id}
-                  onClick={() => { onChangeProvider(pid); onChangeModel(m.id); setOpen(false) }}
+                  onClick={() => { onChangeProvider(pid); setOpen(false) }}
                   disabled={!configured[pid]}
-                  className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
-                    provider === pid && model === m.id
-                      ? 'bg-violet-600/20 text-violet-300'
-                      : configured[pid]
-                        ? 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-                        : 'text-zinc-600 cursor-not-allowed'
+                  className={`w-full text-left px-4 py-2 text-xs transition-colors ${
+                    configured[pid] ? 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200' : 'text-zinc-600 cursor-not-allowed'
                   }`}
                 >
-                  {m.label}
-                  {provider === pid && model === m.id && <span className="text-violet-400">✓</span>}
+                  Cambiar a {prov.name}
                 </button>
-              ))}
+              )}
             </div>
           ))}
         </div>
@@ -96,7 +119,7 @@ function ProviderSelector({ provider, model, configured, onChangeProvider, onCha
 export default function AIAssistant({ onClose }) {
   const { user, projects, bulkCreateTasks, createProject, saveAiSession } = useDashboard()
   const [provider, setProvider] = useState(DEFAULT_PROVIDER)
-  const [model, setModel] = useState(PROVIDERS[DEFAULT_PROVIDER].models[0].id)
+  const [model, setModel] = useState('')
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '¡Hola! Soy tu asistente IA. Cuéntame sobre un proyecto y lo convierte en tareas ejecutables en tu Kanban. Puedes cambiar el modelo arriba.' }
   ])
@@ -106,6 +129,9 @@ export default function AIAssistant({ onClose }) {
   const [selectedProject, setSelectedProject] = useState('')
   const [sessionId, setSessionId] = useState(null)
   const [configured, setConfigured] = useState({})
+  const [models, setModels] = useState([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [modelsError, setModelsError] = useState('')
   const endRef = useRef(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -116,22 +142,45 @@ export default function AIAssistant({ onClose }) {
     fetchConfiguredProviders().then(list => {
       if (cancelled) return
       setConfigured(Object.fromEntries(list.map(id => [id, true])))
-      if (list.length && !list.includes(DEFAULT_PROVIDER)) {
-        setProvider(list[0])
-        setModel(PROVIDERS[list[0]].models[0].id)
-      }
+      if (list.length && !list.includes(DEFAULT_PROVIDER)) setProvider(list[0])
     })
     return () => { cancelled = true }
   }, [])
 
-  // Keep default model in sync when provider changes
   const handleChangeProvider = (pid) => {
     setProvider(pid)
-    setModel(PROVIDERS[pid].models[0].id)
+    setModel('')
   }
+
+  // El catálogo se pide al proveedor cada vez que cambia. Tener la lista escrita
+  // en el código es lo que rompió el asistente: Groq retiró llama-3.3 y Gemini
+  // retiró gemini-2.0-flash, y la app siguió pidiéndolos.
+  useEffect(() => {
+    if (!configured[provider]) { setModels([]); return }
+    let cancelled = false
+    setLoadingModels(true)
+    setModelsError('')
+    fetchModels(provider)
+      .then(list => {
+        if (cancelled) return
+        setModels(list)
+        // Se elige el primero disponible si aún no hay ninguno seleccionado.
+        setModel(prev => (list.some(m => m.id === prev) ? prev : (list[0]?.id ?? '')))
+      })
+      .catch(e => { if (!cancelled) { setModels([]); setModelsError(e.message) } })
+      .finally(() => { if (!cancelled) setLoadingModels(false) })
+    return () => { cancelled = true }
+  }, [provider, configured])
 
   const send = async () => {
     if (!input.trim() || loading) return
+    if (!model) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: '⚠️ Elige un modelo en el selector de arriba antes de escribir.',
+      }])
+      return
+    }
     if (configured[provider] === false || (Object.keys(configured).length && !configured[provider])) {
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -223,6 +272,9 @@ export default function AIAssistant({ onClose }) {
           provider={provider}
           model={model}
           configured={configured}
+          models={models}
+          loadingModels={loadingModels}
+          modelsError={modelsError}
           onChangeProvider={handleChangeProvider}
           onChangeModel={setModel}
         />

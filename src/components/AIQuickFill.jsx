@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Sparkles, Loader2, X } from 'lucide-react'
-import { extractTaskFromText, fetchConfiguredProviders, extractJson, PROVIDERS } from '../lib/ai'
+import { extractTaskFromText, fetchConfiguredProviders, fetchModels, extractJson, PROVIDERS } from '../lib/ai'
 
 export default function AIQuickFill({ onFill }) {
   const [open, setOpen] = useState(false)
@@ -8,26 +8,34 @@ export default function AIQuickFill({ onFill }) {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [provider, setProvider] = useState(null)
+  const [model, setModel] = useState(null)
 
-  // Las keys viven en el servidor; solo preguntamos qué proveedor hay activo.
+  // Las keys viven en el servidor; solo preguntamos qué proveedor hay activo y
+  // qué modelos tiene. Los identificadores escritos a mano caducan.
   useEffect(() => {
     let cancelled = false
-    fetchConfiguredProviders().then(list => {
-      if (!cancelled) setProvider(list[0] ?? null)
-    })
+    fetchConfiguredProviders()
+      .then(async list => {
+        const first = list[0] ?? null
+        if (cancelled || !first) return
+        setProvider(first)
+        const available = await fetchModels(first).catch(() => [])
+        if (!cancelled) setModel(available[0]?.id ?? null)
+      })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [])
 
   const fill = async () => {
     if (!desc.trim() || loading) return
-    if (!provider) {
-      setErr('No hay ningún proveedor de IA configurado en Vercel.')
+    if (!provider || !model) {
+      setErr('No hay ningún modelo de IA disponible. Revisa la configuración en Vercel.')
       return
     }
     setLoading(true)
     setErr('')
     try {
-      const text = await extractTaskFromText(desc, provider, PROVIDERS[provider].models[0].id)
+      const text = await extractTaskFromText(desc, provider, model)
       const data = extractJson(text)
       if (!data) throw new Error('La IA no devolvió un JSON válido. Inténtalo de nuevo.')
       onFill({

@@ -7,11 +7,6 @@ export const PROVIDERS = {
     name: 'Groq',
     badge: 'Gratis',
     color: '#f55036',
-    models: [
-      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (ultra rápido)' },
-      { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' },
-    ],
     envKey: 'GROQ_API_KEY',
     signupUrl: 'https://console.groq.com',
   },
@@ -19,11 +14,6 @@ export const PROVIDERS = {
     name: 'Claude',
     badge: 'Premium',
     color: '#cc785c',
-    models: [
-      { id: 'claude-opus-5', label: 'Opus 5 (recomendado)' },
-      { id: 'claude-sonnet-5', label: 'Sonnet 5' },
-      { id: 'claude-haiku-4-5', label: 'Haiku 4.5 (rápido)' },
-    ],
     envKey: 'ANTHROPIC_API_KEY',
     signupUrl: 'https://console.anthropic.com',
   },
@@ -31,11 +21,6 @@ export const PROVIDERS = {
     name: 'Gemini',
     badge: 'Gratis',
     color: '#4285f4',
-    models: [
-      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-      { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-    ],
     envKey: 'GEMINI_API_KEY',
     signupUrl: 'https://aistudio.google.com/app/apikey',
   },
@@ -43,11 +28,6 @@ export const PROVIDERS = {
     name: 'OpenAI',
     badge: 'Premium',
     color: '#10a37f',
-    models: [
-      { id: 'gpt-4o', label: 'GPT-4o' },
-      { id: 'gpt-4o-mini', label: 'GPT-4o Mini (económico)' },
-      { id: 'o1-mini', label: 'o1 Mini (razonamiento)' },
-    ],
     envKey: 'OPENAI_API_KEY',
     signupUrl: 'https://platform.openai.com/api-keys',
   },
@@ -82,6 +62,26 @@ async function post(body) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error || `Error ${res.status}`)
   return data.text
+}
+
+// Los identificadores de modelo caducan: los proveedores retiran versiones cada
+// pocos meses. En vez de mantener una lista en el código —que fue exactamente lo
+// que se rompió— se le pregunta al proveedor qué tiene disponible ahora.
+export async function fetchModels(providerId) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.')
+
+  const res = await fetch('/api/ai', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ action: 'models', provider: providerId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || `Error ${res.status}`)
+  return Array.isArray(data.models) ? data.models : []
 }
 
 export async function sendMessage(messages, providerId, model, systemPrompt) {
