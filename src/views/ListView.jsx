@@ -115,7 +115,7 @@ function GroupSection({ label, tasks, color, projects, onToggle, onEdit, onDelet
                   ))}
                 </div>
 
-                <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   {project && (
                     <span className="flex items-center gap-1 text-xs text-zinc-500">
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: project.color || '#7c3aed' }} />
@@ -206,7 +206,7 @@ export default function ListView() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
           <ListFilter size={20} className="text-zinc-400" /> Lista
@@ -215,14 +215,14 @@ export default function ListView() {
       </div>
 
       {/* Controls */}
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <div className="flex-1 min-w-40 relative">
+      <div className="mb-6 space-y-2 sm:space-y-0 sm:flex sm:gap-3 sm:flex-wrap">
+        <div className="relative sm:flex-1 sm:min-w-40">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input className="input pl-9" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-500">Agrupar por:</span>
-          <select className="input w-auto text-sm" value={groupBy} onChange={e => setGroupBy(e.target.value)}>
+          <span className="text-xs text-zinc-500 flex-shrink-0">Agrupar por:</span>
+          <select className="input w-full sm:w-auto text-sm" value={groupBy} onChange={e => setGroupBy(e.target.value)}>
             {GROUP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>

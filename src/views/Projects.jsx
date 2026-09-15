@@ -377,7 +377,7 @@ export default function Projects() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
+      <div className="px-4 sm:px-6 py-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <Kanban size={20} className="text-zinc-400" />
           <h1 className="font-semibold text-zinc-100">Proyectos</h1>
@@ -392,14 +392,14 @@ export default function Projects() {
       </div>
 
       {boardError && (
-        <div className="mx-6 mt-3 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 flex items-center justify-between">
+        <div className="mx-4 sm:mx-6 mt-3 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 flex items-center justify-between">
           <span>{boardError}</span>
           <button onClick={() => setBoardError('')} className="text-red-400 hover:text-red-300"><X size={14} /></button>
         </div>
       )}
 
       {/* Project tabs */}
-      <div className="flex gap-1.5 px-6 py-3 border-b border-zinc-800 overflow-x-auto flex-shrink-0">
+      <div className="flex gap-1.5 px-4 sm:px-6 py-3 border-b border-zinc-800 overflow-x-auto flex-shrink-0">
         <button
           onClick={() => setSelectedProject('all')}
           className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
@@ -423,7 +423,7 @@ export default function Projects() {
 
       {/* Kanban Board */}
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 p-6 overflow-x-auto flex-1">
+        <div className="flex gap-4 p-4 sm:p-6 overflow-x-auto flex-1">
           {COLUMNS.map(col => {
             const colTasks = getColTasks(col.id)
             return (

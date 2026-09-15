@@ -95,7 +95,7 @@ function KeyResultRow({ kr, onUpdate, onEdit, onDelete }) {
           </button>
         )}
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <button onClick={() => onEdit(kr)} className="text-zinc-600 hover:text-zinc-300 p-1 rounded"><Pencil size={12} /></button>
           <button onClick={() => onDelete(kr.id)} className="text-zinc-600 hover:text-red-400 p-1 rounded"><Trash2 size={12} /></button>
         </div>
@@ -470,7 +470,7 @@ export default function Goals() {
   })
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">

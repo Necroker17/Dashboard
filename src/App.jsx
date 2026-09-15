@@ -59,7 +59,7 @@ function AppRoutes() {
   return (
     <Layout>
       {loadError && (
-        <div className="mx-6 mt-4 text-sm text-amber-300 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+        <div className="mx-4 sm:mx-6 mt-4 text-sm text-amber-300 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
           No se pudieron cargar algunos datos: {loadError}
         </div>
       )}

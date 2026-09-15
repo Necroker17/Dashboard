@@ -9,6 +9,13 @@
   body {
     @apply bg-zinc-950 text-zinc-50 font-sans antialiased;
     overflow: hidden;
+    /* Evita el rebote elástico al arrastrar en iOS */
+    overscroll-behavior: none;
+  }
+  /* Safari en iOS hace zoom automático al enfocar un campo de menos de 16px.
+     El zoom desencaja el layout y no se deshace solo. */
+  @media (max-width: 767px) {
+    input, select, textarea { font-size: 16px; }
   }
   ::-webkit-scrollbar {
     width: 6px;
@@ -42,7 +49,7 @@
     @apply bg-zinc-900 border border-zinc-800 rounded-xl;
   }
   .input {
-    @apply w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20 transition-all;
+    @apply w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20 transition-all;
   }
   .label {
     @apply block text-xs font-medium text-zinc-400 mb-1.5;
@@ -183,6 +190,30 @@
 .rbc-current-time-indicator {
   @apply bg-violet-400;
   height: 2px;
+}
+
+/* ── Calendario en móvil ──
+   130 px por fila son 780 px de scroll vertical en un teléfono, con celdas de
+   ~50 px de ancho donde no cabe ningún evento. Se compacta todo. */
+@media (max-width: 640px) {
+  .rbc-month-row { min-height: 72px !important; }
+  .rbc-toolbar {
+    @apply flex-col items-stretch gap-2 mb-3;
+  }
+  .rbc-toolbar .rbc-toolbar-label {
+    @apply text-sm py-1;
+  }
+  .rbc-toolbar button {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+  .rbc-btn-group { @apply justify-center; }
+  .rbc-header {
+    @apply py-2 text-[10px] tracking-normal;
+  }
+  .rbc-date-cell { @apply py-1 pr-1; }
+  .rbc-date-cell .rbc-button-link { @apply w-6 h-6 text-xs; }
+  .rbc-event { @apply text-[10px] px-1 py-0; }
+  .rbc-timeslot-group { min-height: 40px; }
 }
 
 /* Agenda view */

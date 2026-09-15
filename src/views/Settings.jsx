@@ -109,7 +109,7 @@ export default function Settings() {
   ]
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto">
       <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2 mb-6"><SettingsIcon size={20} className="text-zinc-400" /> Configuración</h1>
 
       <div className="grid grid-cols-4 gap-6">

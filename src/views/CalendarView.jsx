@@ -331,7 +331,7 @@ export default function CalendarView() {
   }
 
   return (
-    <div className="flex flex-col h-full p-6">
+    <div className="flex flex-col h-full p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
           <CalIcon size={20} className="text-zinc-400" /> Calendario

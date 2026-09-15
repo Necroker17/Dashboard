@@ -50,7 +50,7 @@ function TaskRow({ task, projects, onEdit, onDelete, onToggle }) {
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         <span className={`badge text-xs ${PRIORITY_BG[task.priority]} ${PRIORITY_COLORS[task.priority]}`}>
           {PRIORITY_LABELS[task.priority]}
         </span>
@@ -166,7 +166,7 @@ export default function Tasks() {
   const totalDone = tasks.filter(t => t.status === 'done').length
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -177,23 +177,27 @@ export default function Tasks() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <div className="flex-1 min-w-40 relative">
+      {/* En móvil el buscador ocupa toda la fila y los filtros van en rejilla:
+          envueltos sueltos quedaban desalineados y con huecos. */}
+      <div className="mb-6 space-y-2 sm:space-y-0 sm:flex sm:gap-3 sm:flex-wrap">
+        <div className="relative sm:flex-1 sm:min-w-40">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input className="input pl-9" placeholder="Buscar tareas..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="input w-auto" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+        <div className="grid grid-cols-3 gap-2 sm:contents">
+        <select className="input w-full sm:w-auto" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="all">Todo estado</option>
           {COLUMNS.map(c => <option key={c} value={c}>{STATUS_LABELS[c]}</option>)}
         </select>
-        <select className="input w-auto" value={filterPriority} onChange={e => setFilterPriority(e.target.value)}>
+        <select className="input w-full sm:w-auto" value={filterPriority} onChange={e => setFilterPriority(e.target.value)}>
           <option value="all">Toda prioridad</option>
           {['urgent','high','medium','low'].map(p => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
         </select>
-        <select className="input w-auto" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+        <select className="input w-full sm:w-auto" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
           <option value="all">Todo proyecto</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        </div>
       </div>
 
       {/* Task groups */}
