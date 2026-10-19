@@ -140,6 +140,12 @@ function GoogleSyncBar({ onSynced, onStatus }) {
     onStatus?.(next.connected)
   }, [onStatus])
 
+  // Que exista la credencial no significa que sirva: Google caduca el permiso a
+  // los 7 días mientras la app esté en estado «Prueba», y entonces la fila sigue
+  // ahí pero ya no vale. Sin esto la interfaz ofrecía «Sincronizar» —que falla
+  // siempre— y no había manera de volver a conectar sin desconectar primero.
+  const expirada = !!status?.lastError && /revoc|invalid_grant|vuelve a conectar/i.test(status.lastError)
+
   useEffect(() => { refresh() }, [refresh])
 
   // Al volver del consentimiento: se espera a que la credencial exista de verdad
@@ -175,7 +181,7 @@ function GoogleSyncBar({ onSynced, onStatus }) {
   // para siempre y nunca desaparece de Google. Se sincroniza al entrar en la
   // vista, si hace más de cinco minutos de la última vez.
   useEffect(() => {
-    if (!status?.connected || busy) return
+    if (!status?.connected || busy || expirada) return
     const last = status.lastSyncAt ? new Date(status.lastSyncAt).getTime() : 0
     if (Date.now() - last < 5 * 60 * 1000) return
     let cancelled = false
@@ -222,7 +228,22 @@ function GoogleSyncBar({ onSynced, onStatus }) {
 
   return (
     <div className="mb-4 flex items-center gap-3 flex-wrap text-sm">
-      {status.connected ? (
+      {status.connected && expirada ? (
+        <>
+          <button
+            onClick={() => connectGoogleCalendar().catch(e => setError(e.message))}
+            className="btn-primary"
+          >
+            <Link2 size={14} /> Reconectar Google Calendar
+          </button>
+          <span className="text-xs text-amber-400">
+            Google caducó el permiso. Tus eventos siguen aquí; solo hay que autorizar de nuevo.
+          </span>
+          <button onClick={disconnect} disabled={busy} className="text-xs text-zinc-600 hover:text-red-400 flex items-center gap-1 ml-auto">
+            <Unlink size={11} /> Desconectar
+          </button>
+        </>
+      ) : status.connected ? (
         <>
           <button onClick={sync} disabled={busy} className="btn-ghost border border-zinc-700 disabled:opacity-50">
             {busy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
@@ -245,7 +266,7 @@ function GoogleSyncBar({ onSynced, onStatus }) {
 
       {msg && <span className="text-xs text-green-400">{msg}</span>}
 
-      {(error || status.lastError) && (
+      {(error || (status.lastError && !expirada)) && (
         <span className="text-xs text-red-400 flex items-center gap-1.5 w-full">
           <AlertTriangle size={12} className="flex-shrink-0" /> {error || status.lastError}
         </span>
