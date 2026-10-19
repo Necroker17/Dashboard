@@ -113,11 +113,17 @@ async function gcal(accessToken, path, { method = 'GET', body, query } = {}) {
 
 /* ── Conversión entre los dos formatos ────────────────────────────────── */
 
-// Google acepta un id propio en events.insert, en base32hex (a-v y 0-9). Un uuid
-// sin guiones son dígitos hexadecimales, que caben en ese alfabeto. Usarlo hace
-// la creación idempotente: si el proceso muere entre crear en Google y anotar el
-// id aquí, el reintento choca con un 409 en vez de crear un duplicado.
-const googleIdFor = (localId) => `zd${String(localId).replace(/-/g, '')}`
+// Google acepta un id propio en events.insert, pero SOLO en base32hex: letras de
+// la «a» a la «v» y dígitos. Un uuid sin guiones es hexadecimal, así que encaja;
+// el prefijo también tiene que estar dentro del alfabeto —el primero que usé
+// empezaba por «z» y Google rechazaba cada alta con un 400, de forma que ningún
+// evento creado aquí llegaba nunca a subir.
+//
+// Dárselo nosotros hace el alta idempotente: si el proceso muere entre crear en
+// Google y anotar el id aquí, el reintento choca con un 409 en vez de duplicar.
+const GOOGLE_ID_ALPHABET = /[^a-v0-9]/g
+const googleIdFor = (localId) =>
+  `ev${String(localId).toLowerCase().replace(GOOGLE_ID_ALPHABET, '')}`
 
 // Google usa 'date' para eventos de día completo y 'dateTime' para el resto.
 // Los de día completo se guardan aquí a medianoche UTC, de modo que recortar los
